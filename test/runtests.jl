@@ -8,8 +8,8 @@ const DATADIR = joinpath(@__DIR__, "data")
     edf = EDFFile(joinpath(DATADIR, "test.edf"))
     @test sprint(show, edf) == "EDFFile with 140 signals"
     @test edf.header.version == "0"
-    @test edf.header.patient == "X X X X"
-    @test edf.header.recording == "Startdate 29-APR-2014 X X X"
+    @test edf.header.patient == PatientID(missing, missing, missing, missing)
+    @test edf.header.recording == RecordingID(Date(2014, 4, 29), missing, missing, missing)
     @test edf.header.continuous
     @test edf.header.start == DateTime(2014, 4, 29, 22, 19, 44)
     @test edf.header.n_records == 6

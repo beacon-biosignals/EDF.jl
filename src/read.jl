@@ -48,8 +48,11 @@ parse_int16(raw::AbstractString) = something(tryparse(Int16, raw), zero(Int16))
 function read_header(io::IO, extended::Bool=true)
     version = strip(String(read(io, 8)))
 
-    patient_id = strip(String(read(io, 80))) #PatientID(String(read(io, 80)))
-    recording_id = strip(String(read(io, 80))) # RecordingID(String(read(io, 80)))
+    patient_id_raw = strip(String(read(io, 80)))
+    patient_id = something(tryparse(PatientID, patient_id_raw), patient_id_raw)
+
+    recording_id_raw = strip(String(read(io, 80)))
+    recording_id = something(tryparse(RecordingID, recording_id_raw), recording_id_raw)
 
     start_raw = read(io, 8)
     push!(start_raw, 0x20)  # Push a space separator
@@ -65,7 +68,7 @@ function read_header(io::IO, extended::Bool=true)
     # we ignore the above entirely and use `recording_id.startdate`. We could add a
     # check here on `year(today())`, but that will be dead code for the next 60+ years.
 
-    nb_header = parse(Int, String(read(io, 8)))  # Not stored in header type
+    nb_header = parse(Int, String(read(io, 8)))
     if extended
         continuous = !startswith(String(read(io, 44)), "EDF+D")
     else
@@ -80,7 +83,7 @@ function read_header(io::IO, extended::Bool=true)
 
     # TODO: EDF+ allows floating point data which does not fit within the Int16 limits.
     # See https://edfplus.info/specs/edffloat.html for details. MNE seems to implement
-    # this.
+    # this(?)
 
     set!(io, signals, :label, 16)
     set!(io, signals, :transducer, 80)
@@ -97,7 +100,7 @@ function read_header(io::IO, extended::Bool=true)
     @assert position(io) == nb_header
 
     h = EDFHeader(version, patient_id, recording_id, continuous, start, n_records,
-                  duration, n_signals)
+                  duration, n_signals, nb_header)
     return (h, signals)
 end
 

@@ -4,7 +4,7 @@ using Test
 
 const DATADIR = joinpath(@__DIR__, "data")
 
-@testset "Do it" begin
+@testset "Just Do It" begin
     edf = EDFFile(joinpath(DATADIR, "test.edf"))
     @test sprint(show, edf) == "EDFFile with 140 signals"
     @test edf.header.version == "0"

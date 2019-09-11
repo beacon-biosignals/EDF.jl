@@ -59,8 +59,8 @@ end
 
 function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
     s = split(raw, ' ', keepempty=false)
-    first(s) == "Startdate" || return
     length(s) == 5 || return
+    first(s) == "Startdate" || return
     _, start_raw, admin_raw, tech_raw, equip_raw = s
     startdate = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), start_raw)
     startdate === nothing && return
@@ -106,19 +106,19 @@ All data defined in the file is accessible from this type through various mechan
 """
 struct EDFFile
     header::EDFHeader
-    signals::Dict{String,Signal}
+    signals::Vector{Signal}
 end
 
 function EDFFile(file::AbstractString)
     open(file, "r") do io
         header, data = read_header(io)
         read_data!(io, data, header)
-        EDFFile(header, Dict(x.label => x for x in data))
+        EDFFile(header, data)
     end
 end
 
 function Base.show(io::IO, edf::EDFFile)
-    print(io, "EDFFile with ", length(keys(edf.signals)), " signals")
+    print(io, "EDFFile with ", length(edf.signals), " signals")
 end
 
 #####

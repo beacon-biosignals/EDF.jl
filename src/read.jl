@@ -45,7 +45,7 @@ parse_int16(raw::AbstractString) = something(tryparse(Int16, raw), zero(Int16))
 ##### Reading
 #####
 
-function read_header(io::IO, extended::Bool=true)
+function read_header(io::IO)
     version = strip(String(read(io, 8)))
 
     patient_id_raw = strip(String(read(io, 80)))
@@ -69,12 +69,8 @@ function read_header(io::IO, extended::Bool=true)
     # check here on `year(today())`, but that will be dead code for the next 60+ years.
 
     nb_header = parse(Int, String(read(io, 8)))
-    if extended
-        continuous = !startswith(String(read(io, 44)), "EDF+D")
-    else
-        continuous = true  # Records are always continuous per original EDF spec
-        skip(io, 44)  # Reserved
-    end
+    reserved = String(read(io, 44))
+    continuous = !startswith(reserved, "EDF+D")
     n_records = parse(Int, String(read(io, 8)))
     duration = parse(Float64, String(read(io, 8)))
     n_signals = parse(Int, String(read(io, 4)))

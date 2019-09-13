@@ -50,3 +50,23 @@ function write_header(io::IO, file::EDFFile)
     end
     return b
 end
+
+function write_data(io::IO, file::EDFFile)
+    b = 0
+    for i = 1:file.header.n_records, signal in file.signals
+        n = signal.n_samples
+        s = (i - 1) * n
+        b += write(io, view(signal.samples, s+1:s+n))
+    end
+    return b
+end
+
+"""
+    write_edf(io::IO, edf::EDFFile)
+    write_edf(path::AbstractString, edf::EDFFile)
+
+Write the given `EDFFile` object to the given stream or file and return the number of
+bytes written.
+"""
+write_edf(io::IO, file::EDFFile) = write_header(io, file) + write_data(io, file)
+write_edf(path::AbstractString, edf::EDFFile) = open(io->write_edf(io, edf), path, "w")

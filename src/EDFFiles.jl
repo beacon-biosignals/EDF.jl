@@ -1,6 +1,6 @@
 module EDFFiles
 
-export EDFFile, Signal, PatientID, RecordingID
+export EDFFile, Signal, PatientID, RecordingID, write_edf
 
 using Dates
 

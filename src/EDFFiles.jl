@@ -5,7 +5,7 @@ export EDFFile, Signal, PatientID, RecordingID, write_edf
 using Dates
 
 #####
-##### Signals
+##### Types
 #####
 
 # TODO: Make the vector of samples mmappable
@@ -14,6 +14,19 @@ using Dates
     Signal
 
 Type representing a single signal extracted from an EDF file.
+
+# Fields
+
+* `label` (`String`): The name of the signal, e.g. `F3-M2`
+* `transducer` (`String`): Transducer type
+* `physical_units` (`String`): Units of measure for the signal, e.g. `uV`
+* `physical_min` (`Int16`): The physical minimum value of the signal
+* `physical_max` (`Int16`): The physical maximum value of the signal
+* `digital_min` (`Int16`): The minimum value of the signal that could occur in a data record
+* `digital_max` (`Int16`): The maximum value of the signal that could occur in a data record
+* `prefilter` (`String`): Description of any prefiltering done to the signal
+* `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
+* `samples` (`Vector{Int16}`): The sample values of the signal
 """
 mutable struct Signal
     label::String
@@ -102,7 +115,13 @@ end
     EDFFile
 
 Type representing a parsed EDF file.
-All data defined in the file is accessible from this type through various mechanisms.
+All data defined in the file is accessible from this type by inspecting its fields
+and the fields of the types of those fields.
+
+# Fields
+
+* `header` (`EDFHeader`): File-level metadata extracted from the file header
+* `signals` (`Vector{Signal}`): All signals extracted from the data records
 """
 struct EDFFile
     header::EDFHeader

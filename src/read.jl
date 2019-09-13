@@ -2,6 +2,32 @@
 ##### Parsing utilities
 #####
 
+function Base.tryparse(::Type{PatientID}, raw::AbstractString)
+    s = split(raw, ' ', keepempty=false)
+    length(s) == 4 || return
+    code_raw, sex_raw, dob_raw, name_raw = s
+    length(sex_raw) == 1 || return
+    code = edf_unknown(code_raw)
+    sex = edf_unknown(first, sex_raw)
+    dob = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
+    dob === nothing && return
+    name = edf_unknown(name_raw)
+    return PatientID(code, sex, dob, name)
+end
+
+function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
+    s = split(raw, ' ', keepempty=false)
+    length(s) == 5 || return
+    first(s) == "Startdate" || return
+    _, start_raw, admin_raw, tech_raw, equip_raw = s
+    startdate = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), start_raw)
+    startdate === nothing && return
+    admincode = edf_unknown(admin_raw)
+    technician = edf_unknown(tech_raw)
+    equipment = edf_unknown(equip_raw)
+    return RecordingID(startdate, admincode, technician, equipment)
+end
+
 """
     edf_unknown([f,] field::String)
 

@@ -9,42 +9,42 @@ function _write(io::IO, value::T) where T<:Union{PatientID,RecordingID}
         if T <: RecordingID && f === :startdate
             nb += _write(io, "Startdate ")
         end
-        nb += _write(io, x) + write(io, 0x20)
+        nb += _write(io, x) + Base.write(io, 0x20)
     end
     return nb
 end
 
-_write(io::IO, value) = write(io, string(value))
-_write(io::IO, date::Date) = write(io, uppercase(Dates.format(date, dateformat"dd-u-yyyy")))
-_write(io::IO, ::Missing) = write(io, "X")
-_write(io::IO, x::AbstractFloat) = write(io, string(isinteger(x) ? trunc(Int, x) : x))
+_write(io::IO, value) = Base.write(io, string(value))
+_write(io::IO, date::Date) = Base.write(io, uppercase(Dates.format(date, dateformat"dd-u-yyyy")))
+_write(io::IO, ::Missing) = Base.write(io, "X")
+_write(io::IO, x::AbstractFloat) = Base.write(io, string(isinteger(x) ? trunc(Int, x) : x))
 
 function _write(io::IO, tal::AnnotationsList)
     nb = _write(io, tal.offset >= 0 ? '+' : '-') + _write(io, tal.offset)
     if tal.duration !== nothing
-        nb += write(io, 0x15) + _write(io, tal.duration)
+        nb += Base.write(io, 0x15) + _write(io, tal.duration)
     end
-    nb += write(io, 0x14)
+    nb += Base.write(io, 0x14)
     mark = position(io)
     join(io, tal.event, '\x14')
     nb += position(io) - mark
-    nb += write(io, 0x14, 0x0)
+    nb += Base.write(io, 0x14, 0x0)
     return nb
 end
 
 function _write(io::IO, anno::RecordAnnotation)
     nb = _write(io, anno.offset >= 0 ? '+' : '-') +
          _write(io, anno.offset) +
-         write(io, 0x14, 0x14)
+         Base.write(io, 0x14, 0x14)
     mark = position(io)
     join(io, anno.event, '\x14')
     nb += position(io) - mark
-    nb += write(io, 0x0)
+    nb += Base.write(io, 0x0)
     for tal in anno.annotations
         nb += _write(io, tal)
     end
     while nb < anno.n_bytes
-        nb += write(io, 0x0)
+        nb += Base.write(io, 0x0)
     end
     @assert nb == anno.n_bytes
     return nb
@@ -54,12 +54,12 @@ function write_padded(io::IO, value, n::Integer)
     b = _write(io, value)
     @assert b <= n
     while b < n
-        b += write(io, 0x20)
+        b += Base.write(io, 0x20)
     end
     return b
 end
 
-function write_header(io::IO, file::EDFFile)
+function write_header(io::IO, file::File)
     h = file.header
     has_anno = file.annotations !== nothing
     b = write_padded(io, h.version, 8) +
@@ -84,18 +84,18 @@ function write_header(io::IO, file::EDFFile)
     end
     ns = 32 * (length(file.signals) + has_anno)
     for _ = 1:ns
-        b += write(io, 0x20)
+        b += Base.write(io, 0x20)
     end
     return b
 end
 
-function write_data(io::IO, file::EDFFile)
+function write_data(io::IO, file::File)
     b = 0
     for i = 1:file.header.n_records
         for signal in file.signals
             n = signal.n_samples
             s = (i - 1) * n
-            b += write(io, view(signal.samples, s+1:s+n))
+            b += Base.write(io, view(signal.samples, s+1:s+n))
         end
         if file.annotations !== nothing
             b += _write(io, file.annotations[i])
@@ -105,11 +105,11 @@ function write_data(io::IO, file::EDFFile)
 end
 
 """
-    write_edf(io::IO, edf::EDFFile)
-    write_edf(path::AbstractString, edf::EDFFile)
+    EDF.write(io::IO, edf::EDF.File)
+    EDF.write(path::AbstractString, edf::EDF.File)
 
-Write the given `EDFFile` object to the given stream or file and return the number of
+Write the given `EDF.File` object to the given stream or file and return the number of
 bytes written.
 """
-write_edf(io::IO, file::EDFFile) = write_header(io, file) + write_data(io, file)
-write_edf(path::AbstractString, edf::EDFFile) = open(io->write_edf(io, edf), path, "w")
+write(io::IO, file::File) = write_header(io, file) + write_data(io, file)
+write(path::AbstractString, edf::File) = open(io->write(io, edf), path, "w")

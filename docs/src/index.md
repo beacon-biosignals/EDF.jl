@@ -13,25 +13,27 @@ CurrentModule = EDF
 
 EDF files consist of a header record, which contains file-level metadata, and a number
 of contiguous data records, each containing a chunk of each signal.
-In Julia, we represent this with an `EDFFile` type that consists of an `EDFHeader` object
-and a vector of `Signal`s.
+In Julia, we represent this with an `EDF.File` type that consists of an `EDF.Header`
+object and a vector of `EDF.Signal`s.
 
 ```@docs
-EDFFile
-EDF.EDFHeader
+EDF.File
+EDF.Header
 EDF.Signal
 EDF.RecordAnnotation
 EDF.AnnotationsList
+EDF.PatientID
+EDF.RecordingID
 ```
 
 Per the original EDF specification, the signals are assumed to be continuous across data
 records.
 However, the EDF+ specification introduced the notion of discontinuous signals, denoted
 with a value of "EDF+D" in one of the reserved fields.
-The `EDFHeader` type notes this in a `Bool` field called `continuous`.
+The `EDF.Header` type notes this in a `Bool` field called `continuous`.
 The signal data is always store contiguously, regardless of whether the data records are
-declared to be continuous, but, given a `Signal` object, users of the package can divide
-the signal by records if needed using
+declared to be continuous, but, given an `EDF.Signal` object, users of the package can
+divide the signal by records if needed using
 
 ```julia
 Iterators.partition(signal.samples, signal.n_samples)
@@ -42,10 +44,12 @@ which yields a total of `header.n_records` items.
 
 ### Reading
 
-The `EDFFile` type constructor, mentioned above, accepts a path to a file as a string.
+```@docs
+EDF.read
+```
 
 ### Writing
 
 ```@docs
-write_edf
+EDF.write
 ```

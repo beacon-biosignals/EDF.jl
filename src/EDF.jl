@@ -1,13 +1,26 @@
 module EDF
 
-export EDFFile, Signal, PatientID, RecordingID, write_edf
-
 using Dates
 
 #####
 ##### Types
 #####
 
+"""
+    EDF.PatientID
+
+Type representing the local patient identification field of an EDF header, assuming the
+file is EDF+ compliant.
+`EDF.File`s which are parsed from files which are not EDF+ compliant do not contain this
+type; the corresponding field is instead a `String`.
+
+# Fields
+
+* `code` (`String` or `Missing`): The code by which a patient is referred, if known
+* `sex` (`Char` or `Missing`): Patient sex, `'M'`, `'F'`, or `missing` if unknown
+* `birthdate` (`Date` or `Missing`): Patient date of birth, if known
+* `name` (`String` or `Missing`): Patient name, if known
+"""
 struct PatientID
     code::Union{String,Missing}
     sex::Union{Char,Missing}
@@ -15,6 +28,21 @@ struct PatientID
     name::Union{String,Missing}
 end
 
+"""
+    EDF.RecordingID
+
+Type representing the local recording identification field of an EDF header, assuming
+the file is EDF+ compliant.
+`EDF.File`s which are parsed from files which are not EDF+ compliant do not contain
+this type; the corresponding field is instead a `String`.
+
+# Fields
+
+* `startdate` (`Date` or `Missing`): Start date of the recording
+* `admincode` (`String` or `Missing`): Administration code for the recording
+* `technician` (`String` or `Missing`): Identifier for the technician or investigator
+* `equipment` (`String` or `Missing`): Identifier for the equipment used
+"""
 struct RecordingID
     startdate::Union{Date,Missing}
     admincode::Union{String,Missing}
@@ -23,7 +51,7 @@ struct RecordingID
 end
 
 """
-    AnnotationsList
+    EDF.AnnotationsList
 
 Type representing a time-stamp annotations list (TAL).
 
@@ -41,7 +69,7 @@ struct AnnotationsList
 end
 
 """
-    RecordAnnotation
+    EDF.RecordAnnotation
 
 Type containing all annotations applied to a particular data record.
 
@@ -51,7 +79,7 @@ Type containing all annotations applied to a particular data record.
   at which the current data record starts
 * `event` (`Vector{String}` or `Nothing`): The event that marks the start of the data
   record, if applicable
-* `annotations` (`Vector{AnnotationsList}`): The time-stamped annotations lists (TALs)
+* `annotations` (`Vector{EDF.AnnotationsList}`): The time-stamped annotations lists (TALs)
   in the current data record
 * `n_bytes` (`Int`): The number of raw bytes per data record in the "EDF Annotation" signal
 """
@@ -66,22 +94,22 @@ mutable struct RecordAnnotation
 end
 
 """
-    EDFHeader
+    EDF.Header
 
 Type representing the header record for an EDF file.
 
 ## Fields
 
 * `version` (`String`): Version of the data format
-* `patient` (`String` or `PatientID`): Local patient identification
-* `recording` (`String` or `RecordingID`): Local recording identification
+* `patient` (`String` or `EDF.PatientID`): Local patient identification
+* `recording` (`String` or `EDF.RecordingID`): Local recording identification
 * `start` (`DateTime`): Date and time the recording started
 * `n_records` (`Int`): Number of data records
 * `duration` (`Float64`): Duration of a data record in seconds
 * `n_signals` (`Int`): Number of signals in a data record
 * `nb_header` (`Int`): Total number of raw bytes in the header record
 """
-struct EDFHeader
+struct Header
     version::String
     patient::Union{String,PatientID}
     recording::Union{String,RecordingID}
@@ -96,7 +124,7 @@ end
 # TODO: Make the vector of samples mmappable
 # Also TODO: Refactor to make signals immutable
 """
-    Signal
+    EDF.Signal
 
 Type representing a single signal extracted from an EDF file.
 
@@ -129,7 +157,7 @@ mutable struct Signal
 end
 
 """
-    EDFFile
+    EDF.File
 
 Type representing a parsed EDF file.
 All data defined in the file is accessible from this type by inspecting its fields
@@ -137,28 +165,20 @@ and the fields of the types of those fields.
 
 # Fields
 
-* `header` (`EDFHeader`): File-level metadata extracted from the file header
-* `signals` (`Vector{Signal}`): All signals extracted from the data records
-* `annotations` (`Vector{RecordAnnotation}` or `Nothing`): A vector of length
+* `header` (`EDF.Header`): File-level metadata extracted from the file header
+* `signals` (`Vector{EDF.Signal}`): All signals extracted from the data records
+* `annotations` (`Vector{EDF.RecordAnnotation}` or `Nothing`): A vector of length
   `header.n_records` where each element contains annotations for the corresponding
   data record, if annotations are present in the file
 """
-struct EDFFile
-    header::EDFHeader
+struct File
+    header::Header
     signals::Vector{Signal}
     annotations::Union{Vector{RecordAnnotation},Nothing}
 end
 
-function EDFFile(file::AbstractString)
-    open(file, "r") do io
-        header, data, anno_idx = read_header(io)
-        data, annos = read_data!(io, data, header, anno_idx)
-        EDFFile(header, data, annos)
-    end
-end
-
-function Base.show(io::IO, edf::EDFFile)
-    print(io, "EDFFile with ", length(edf.signals), " signals")
+function Base.show(io::IO, edf::File)
+    print(io, "EDF.File with ", length(edf.signals), " signals")
 end
 
 #####

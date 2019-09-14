@@ -1,5 +1,5 @@
 using EDF
-using EDF: AnnotationsList, RecordAnnotation
+using EDF: AnnotationsList, PatientID, RecordAnnotation, RecordingID, Signal
 using Dates
 using Test
 
@@ -37,8 +37,8 @@ deep_equal(a::T, b::S) where {T,S} = false
 const DATADIR = joinpath(@__DIR__, "data")
 
 @testset "Just Do It" begin
-    edf = EDFFile(joinpath(DATADIR, "test.edf"))
-    @test sprint(show, edf) == "EDFFile with 139 signals"
+    edf = EDF.read(joinpath(DATADIR, "test.edf"))
+    @test sprint(show, edf) == "EDF.File with 139 signals"
     @test edf.header.version == "0"
     @test edf.header.patient == PatientID(missing, missing, missing, missing)
     @test edf.header.recording == RecordingID(Date(2014, 4, 29), missing, missing, missing)
@@ -76,13 +76,13 @@ const DATADIR = joinpath(@__DIR__, "data")
 
     mktempdir() do dir
         file = joinpath(dir, "test2.edf")
-        write_edf(file, edf)
-        edf2 = EDFFile(file)
+        EDF.write(file, edf)
+        edf2 = EDF.read(file)
         @test deep_equal(edf, edf2)
     end
 
-    uneven = EDFFile(joinpath(DATADIR, "test_uneven_samp.edf"))
-    @test sprint(show, uneven) == "EDFFile with 2 signals"
+    uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
+    @test sprint(show, uneven) == "EDF.File with 2 signals"
     @test uneven.header.version == "0"
     @test uneven.header.patient == "A 3Hz sinewave and a 0.2Hz block signal, both starting in their positive phase"
     @test uneven.header.recording == "110 seconds from 13-JUL-2000 12.05.48hr."

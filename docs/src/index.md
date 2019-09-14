@@ -22,6 +22,8 @@ EDF.Header
 EDF.Signal
 EDF.RecordAnnotation
 EDF.AnnotationsList
+EDF.PatientID
+EDF.RecordingID
 ```
 
 Per the original EDF specification, the signals are assumed to be continuous across data

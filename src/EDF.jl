@@ -6,6 +6,21 @@ using Dates
 ##### Types
 #####
 
+"""
+    EDF.PatientID
+
+Type representing the local patient identification field of an EDF header, assuming the
+file is EDF+ compliant.
+`EDF.File`s which are parsed from files which are not EDF+ compliant do not contain this
+type; the corresponding field is instead a `String`.
+
+# Fields
+
+* `code` (`String` or `Missing`): The code by which a patient is referred, if known
+* `sex` (`Char` or `Missing`): Patient sex, `'M'`, `'F'`, or `missing` if unknown
+* `birthdate` (`Date` or `Missing`): Patient date of birth, if known
+* `name` (`String` or `Missing`): Patient name, if known
+"""
 struct PatientID
     code::Union{String,Missing}
     sex::Union{Char,Missing}
@@ -13,6 +28,21 @@ struct PatientID
     name::Union{String,Missing}
 end
 
+"""
+    EDF.RecordingID
+
+Type representing the local recording identification field of an EDF header, assuming
+the file is EDF+ compliant.
+`EDF.File`s which are parsed from files which are not EDF+ compliant do not contain
+this type; the corresponding field is instead a `String`.
+
+# Fields
+
+* `startdate` (`Date` or `Missing`): Start date of the recording
+* `admincode` (`String` or `Missing`): Administration code for the recording
+* `technician` (`String` or `Missing`): Identifier for the technician or investigator
+* `equipment` (`String` or `Missing`): Identifier for the equipment used
+"""
 struct RecordingID
     startdate::Union{Date,Missing}
     admincode::Union{String,Missing}

@@ -23,6 +23,49 @@ struct RecordingID
 end
 
 """
+    AnnotationsList
+
+Type representing a time-stamp annotations list (TAL).
+
+# Fields
+
+* `offset` (`Float64`): Offset from the recording start time (specified in the header)
+  at which the event in this TAL starts
+* `duration` (`Float64` or `Nothing`): Duration of the event, if specified
+* `event` (`Vector{String}`): List of events for this TAL
+"""
+struct AnnotationsList
+    offset::Float64
+    duration::Union{Float64,Nothing}
+    event::Vector{String}
+end
+
+"""
+    RecordAnnotation
+
+Type containing all annotations applied to a particular data record.
+
+# Fields
+
+* `offset` (`Float64`): Offset from the recording start time (specified in the header)
+  at which the current data record starts
+* `event` (`Vector{String}` or `Nothing`): The event that marks the start of the data
+  record, if applicable
+* `annotations` (`Vector{AnnotationsList}`): The time-stamped annotations lists (TALs)
+  in the current data record
+* `n_bytes` (`Int`): The number of raw bytes per data record in the "EDF Annotation" signal
+"""
+mutable struct RecordAnnotation
+    offset::Float64
+    event::Union{Vector{String},Nothing}
+    annotations::Vector{AnnotationsList}
+    n_bytes::Int
+
+    RecordAnnotation() = new()
+    RecordAnnotation(offset, event, annotations, n_bytes) = new(offset, event, annotations, n_bytes)
+end
+
+"""
     EDFHeader
 
 Type representing the header record for an EDF file.
@@ -96,17 +139,21 @@ and the fields of the types of those fields.
 
 * `header` (`EDFHeader`): File-level metadata extracted from the file header
 * `signals` (`Vector{Signal}`): All signals extracted from the data records
+* `annotations` (`Vector{RecordAnnotation}` or `Nothing`): A vector of length
+  `header.n_records` where each element contains annotations for the corresponding
+  data record, if annotations are present in the file
 """
 struct EDFFile
     header::EDFHeader
     signals::Vector{Signal}
+    annotations::Union{Vector{RecordAnnotation},Nothing}
 end
 
 function EDFFile(file::AbstractString)
     open(file, "r") do io
-        header, data = read_header(io)
-        read_data!(io, data, header)
-        EDFFile(header, data)
+        header, data, anno_idx = read_header(io)
+        data, annos = read_data!(io, data, header, anno_idx)
+        EDFFile(header, data, annos)
     end
 end
 

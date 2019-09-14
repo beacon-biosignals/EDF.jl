@@ -75,10 +75,10 @@ function read_header(io::IO)
     version = strip(String(read(io, 8)))
 
     patient_id_raw = strip(String(read(io, 80)))
-    patient_id = something(tryparse(PatientID, patient_id_raw), patient_id_raw)
+    patient_id = something(tryparse(PatientID, patient_id_raw), String(patient_id_raw))
 
     recording_id_raw = strip(String(read(io, 80)))
-    recording_id = something(tryparse(RecordingID, recording_id_raw), recording_id_raw)
+    recording_id = something(tryparse(RecordingID, recording_id_raw), String(recording_id_raw))
 
     start_raw = read(io, 8)
     push!(start_raw, 0x20)  # Push a space separator
@@ -119,23 +119,90 @@ function read_header(io::IO)
 
     skip(io, 32 * n_signals)  # Reserved
 
+    for signal in signals
+        signal.samples = Vector{Int16}()  # Otherwise it's #undef
+    end
+
+    anno_idx = findfirst(signal->signal.label == "EDF Annotations", signals)
+    if anno_idx !== nothing
+        n_signals -= 1
+    end
+
     @assert position(io) == nb_header
 
     h = EDFHeader(version, patient_id, recording_id, continuous, start, n_records,
                   duration, n_signals, nb_header)
-    return (h, signals)
+    return (h, signals, anno_idx)
 end
 
-function read_data!(io::IO, signals::Vector{Signal}, header::EDFHeader)
-    nrecs = header.n_records
-    nsigs = header.n_signals
-    for sig in signals
-        sig.samples = Vector{Int16}()
-    end
-    for i = 1:nrecs, j = 1:nsigs
-        data = reinterpret(Int16, read(io, 2 * signals[j].n_samples))
-        append!(signals[j].samples, data)
+function read_data!(io::IO, signals::Vector{Signal}, header::EDFHeader, ::Nothing)
+    for i = 1:header.n_records, signal in signals
+        append!(signal.samples, reinterpret(Int16, read(io, 2 * signal.n_samples)))
     end
     @assert eof(io)
-    return signals
+    return (signals, nothing)
+end
+
+function read_data!(io::IO, signals::Vector{Signal}, header::EDFHeader, anno_idx::Integer)
+    annos = RecordAnnotation[]
+    for i = 1:header.n_records
+        anno = RecordAnnotation()
+        anno.annotations = AnnotationsList[]
+        for (j, signal) in enumerate(signals)
+            n_bytes = 2 * signal.n_samples
+            data = read(io, n_bytes)
+            if j == anno_idx
+                record = IOBuffer(data)
+                while !eof(record) && Base.peek(record) != 0x0
+                    toplevel, offset, duration, events = read_tal(record)
+                    if toplevel
+                        anno.offset = offset
+                        anno.event = events
+                        anno.n_bytes = n_bytes
+                    else
+                        push!(anno.annotations, AnnotationsList(offset, duration, events))
+                    end
+                end
+            else
+                append!(signal.samples, reinterpret(Int16, data))
+            end
+        end
+        push!(annos, anno)
+    end
+    deleteat!(signals, anno_idx)
+    @assert eof(io)
+    return (signals, annos)
+end
+
+function read_tal(io::IO)
+    c = read(io, UInt8)
+    # Read the offset from the start time declared in the header
+    @assert c === 0x2b || c === 0x2d  # + or -
+    sign = c === 0x2b ? 1 : -1
+    buffer = UInt8[]
+    while true
+        c = read(io, UInt8)
+        if c === 0x14 || c === 0x15
+            break
+        end
+        push!(buffer, c)
+    end
+    offset = sign * parse(Float64, String(buffer))
+    # Read the duration, if present
+    if c === 0x15
+        duration = parse(Float64, String(readuntil(io, 0x14)))
+    else
+        duration = nothing
+    end
+    c = read(io, UInt8)
+    record = c === 0x14  # Whether the annotation applies to the entire record
+    # Read the annotation text, if present
+    if c !== 0x0
+        raw = readuntil(io, 0x0)
+        pushfirst!(raw, c)
+        events = convert(Vector{String}, split(String(raw), '\x14', keepempty=false))
+    else
+        events = String[]
+    end
+    return (record, offset, duration, events)
 end

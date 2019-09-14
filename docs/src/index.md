@@ -20,6 +20,8 @@ and a vector of `Signal`s.
 EDFFile
 EDFFiles.EDFHeader
 EDFFiles.Signal
+EDFFiles.RecordAnnotation
+EDFFiles.AnnotationsList
 ```
 
 Per the original EDF specification, the signals are assumed to be continuous across data

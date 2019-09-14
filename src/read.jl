@@ -49,7 +49,7 @@ function set!(io::IO, f, sigs::Vector{Signal}, name::Symbol, sz::Integer)
     n = length(sigs)
     T = fieldtype(Signal, name)
     @inbounds for i = 1:n
-        x = f(String(read(io, sz)))
+        x = f(String(Base.read(io, sz)))
         setfield!(sigs[i], name, convert(T, x))
     end
     return sigs
@@ -72,17 +72,17 @@ parse_int16(raw::AbstractString) = something(tryparse(Int16, raw), zero(Int16))
 #####
 
 function read_header(io::IO)
-    version = strip(String(read(io, 8)))
+    version = strip(String(Base.read(io, 8)))
 
-    patient_id_raw = strip(String(read(io, 80)))
+    patient_id_raw = strip(String(Base.read(io, 80)))
     patient_id = something(tryparse(PatientID, patient_id_raw), String(patient_id_raw))
 
-    recording_id_raw = strip(String(read(io, 80)))
+    recording_id_raw = strip(String(Base.read(io, 80)))
     recording_id = something(tryparse(RecordingID, recording_id_raw), String(recording_id_raw))
 
-    start_raw = read(io, 8)
+    start_raw = Base.read(io, 8)
     push!(start_raw, 0x20)  # Push a space separator
-    append!(start_raw, read(io, 8))  # Add the time
+    append!(start_raw, Base.read(io, 8))  # Add the time
     # Parsing the date per the given format will validate EDF+ item 2
     start = DateTime(String(start_raw), dateformat"dd\.mm\.yy HH\.MM\.SS")
     if year(start) <= 84  # 1985 is used as a clipping date
@@ -94,12 +94,12 @@ function read_header(io::IO)
     # we ignore the above entirely and use `recording_id.startdate`. We could add a
     # check here on `year(today())`, but that will be dead code for the next 60+ years.
 
-    nb_header = parse(Int, String(read(io, 8)))
-    reserved = String(read(io, 44))
+    nb_header = parse(Int, String(Base.read(io, 8)))
+    reserved = String(Base.read(io, 44))
     continuous = !startswith(reserved, "EDF+D")
-    n_records = parse(Int, String(read(io, 8)))
-    duration = parse(Float64, String(read(io, 8)))
-    n_signals = parse(Int, String(read(io, 4)))
+    n_records = parse(Int, String(Base.read(io, 8)))
+    duration = parse(Float64, String(Base.read(io, 8)))
+    n_signals = parse(Int, String(Base.read(io, 4)))
 
     signals = [Signal() for _ = 1:n_signals]
 
@@ -130,27 +130,27 @@ function read_header(io::IO)
 
     @assert position(io) == nb_header
 
-    h = EDFHeader(version, patient_id, recording_id, continuous, start, n_records,
-                  duration, n_signals, nb_header)
+    h = Header(version, patient_id, recording_id, continuous, start, n_records,
+               duration, n_signals, nb_header)
     return (h, signals, anno_idx)
 end
 
-function read_data!(io::IO, signals::Vector{Signal}, header::EDFHeader, ::Nothing)
+function read_data!(io::IO, signals::Vector{Signal}, header::Header, ::Nothing)
     for i = 1:header.n_records, signal in signals
-        append!(signal.samples, reinterpret(Int16, read(io, 2 * signal.n_samples)))
+        append!(signal.samples, reinterpret(Int16, Base.read(io, 2 * signal.n_samples)))
     end
     @assert eof(io)
     return (signals, nothing)
 end
 
-function read_data!(io::IO, signals::Vector{Signal}, header::EDFHeader, anno_idx::Integer)
+function read_data!(io::IO, signals::Vector{Signal}, header::Header, anno_idx::Integer)
     annos = RecordAnnotation[]
     for i = 1:header.n_records
         anno = RecordAnnotation()
         anno.annotations = AnnotationsList[]
         for (j, signal) in enumerate(signals)
             n_bytes = 2 * signal.n_samples
-            data = read(io, n_bytes)
+            data = Base.read(io, n_bytes)
             if j == anno_idx
                 record = IOBuffer(data)
                 while !eof(record) && Base.peek(record) != 0x0
@@ -175,13 +175,13 @@ function read_data!(io::IO, signals::Vector{Signal}, header::EDFHeader, anno_idx
 end
 
 function read_tal(io::IO)
-    c = read(io, UInt8)
+    c = Base.read(io, UInt8)
     # Read the offset from the start time declared in the header
     @assert c === 0x2b || c === 0x2d  # + or -
     sign = c === 0x2b ? 1 : -1
     buffer = UInt8[]
     while true
-        c = read(io, UInt8)
+        c = Base.read(io, UInt8)
         if c === 0x14 || c === 0x15
             break
         end
@@ -194,7 +194,7 @@ function read_tal(io::IO)
     else
         duration = nothing
     end
-    c = read(io, UInt8)
+    c = Base.read(io, UInt8)
     record = c === 0x14  # Whether the annotation applies to the entire record
     # Read the annotation text, if present
     if c !== 0x0
@@ -205,4 +205,17 @@ function read_tal(io::IO)
         events = String[]
     end
     return (record, offset, duration, events)
+end
+
+"""
+    EDF.read(file::AbstractString)
+
+Read the given file and return an `EDF.File` object containing the parsed data.
+"""
+function read(file::AbstractString)
+    open(file, "r") do io
+        header, data, anno_idx = read_header(io)
+        data, annos = read_data!(io, data, header, anno_idx)
+        File(header, data, annos)
+    end
 end

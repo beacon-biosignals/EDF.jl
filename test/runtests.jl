@@ -1,5 +1,5 @@
-using EDFFiles
-using EDFFiles: AnnotationsList, RecordAnnotation
+using EDF
+using EDF: AnnotationsList, RecordAnnotation
 using Dates
 using Test
 
@@ -63,13 +63,13 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test deep_equal(edf.annotations, expected)
 
     io = IOBuffer()
-    nb = EDFFiles.write_header(io, edf)
+    nb = EDF.write_header(io, edf)
     @test nb == edf.header.nb_header
-    EDFFiles.write_data(io, edf)
+    EDF.write_data(io, edf)
     seekstart(io)
-    h, d, i = EDFFiles.read_header(io)
+    h, d, i = EDF.read_header(io)
     @test deep_equal(edf.header, h)
-    d, a = EDFFiles.read_data!(io, d, h, i)
+    d, a = EDF.read_data!(io, d, h, i)
     @test eof(io)
     @test deep_equal(edf.signals, d)
     @test deep_equal(edf.annotations, a)

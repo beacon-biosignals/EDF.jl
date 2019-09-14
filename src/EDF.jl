@@ -1,4 +1,4 @@
-module EDFFiles
+module EDF
 
 export EDFFile, Signal, PatientID, RecordingID, write_edf
 

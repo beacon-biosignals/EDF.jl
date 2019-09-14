@@ -8,6 +8,91 @@ using Dates
 ##### Types
 #####
 
+struct PatientID
+    code::Union{String,Missing}
+    sex::Union{Char,Missing}
+    birthdate::Union{Date,Missing}
+    name::Union{String,Missing}
+end
+
+struct RecordingID
+    startdate::Union{Date,Missing}
+    admincode::Union{String,Missing}
+    technician::Union{String,Missing}
+    equipment::Union{String,Missing}
+end
+
+"""
+    AnnotationsList
+
+Type representing a time-stamp annotations list (TAL).
+
+# Fields
+
+* `offset` (`Float64`): Offset from the recording start time (specified in the header)
+  at which the event in this TAL starts
+* `duration` (`Float64` or `Nothing`): Duration of the event, if specified
+* `event` (`Vector{String}`): List of events for this TAL
+"""
+struct AnnotationsList
+    offset::Float64
+    duration::Union{Float64,Nothing}
+    event::Vector{String}
+end
+
+"""
+    RecordAnnotation
+
+Type containing all annotations applied to a particular data record.
+
+# Fields
+
+* `offset` (`Float64`): Offset from the recording start time (specified in the header)
+  at which the current data record starts
+* `event` (`Vector{String}` or `Nothing`): The event that marks the start of the data
+  record, if applicable
+* `annotations` (`Vector{AnnotationsList}`): The time-stamped annotations lists (TALs)
+  in the current data record
+* `n_bytes` (`Int`): The number of raw bytes per data record in the "EDF Annotation" signal
+"""
+mutable struct RecordAnnotation
+    offset::Float64
+    event::Union{Vector{String},Nothing}
+    annotations::Vector{AnnotationsList}
+    n_bytes::Int
+
+    RecordAnnotation() = new()
+    RecordAnnotation(offset, event, annotations, n_bytes) = new(offset, event, annotations, n_bytes)
+end
+
+"""
+    EDFHeader
+
+Type representing the header record for an EDF file.
+
+## Fields
+
+* `version` (`String`): Version of the data format
+* `patient` (`String` or `PatientID`): Local patient identification
+* `recording` (`String` or `RecordingID`): Local recording identification
+* `start` (`DateTime`): Date and time the recording started
+* `n_records` (`Int`): Number of data records
+* `duration` (`Float64`): Duration of a data record in seconds
+* `n_signals` (`Int`): Number of signals in a data record
+* `nb_header` (`Int`): Total number of raw bytes in the header record
+"""
+struct EDFHeader
+    version::String
+    patient::Union{String,PatientID}
+    recording::Union{String,RecordingID}
+    continuous::Bool
+    start::DateTime
+    n_records::Int
+    duration::Float64
+    n_signals::Int
+    nb_header::Int
+end
+
 # TODO: Make the vector of samples mmappable
 # Also TODO: Refactor to make signals immutable
 """
@@ -43,74 +128,6 @@ mutable struct Signal
     Signal() = new()
 end
 
-struct PatientID
-    code::Union{String,Missing}
-    sex::Union{Char,Missing}
-    birthdate::Union{Date,Missing}
-    name::Union{String,Missing}
-end
-
-function Base.tryparse(::Type{PatientID}, raw::AbstractString)
-    s = split(raw, ' ', keepempty=false)
-    length(s) == 4 || return
-    code_raw, sex_raw, dob_raw, name_raw = s
-    length(sex_raw) == 1 || return
-    code = edf_unknown(code_raw)
-    sex = edf_unknown(first, sex_raw)
-    dob = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
-    dob === nothing && return
-    name = edf_unknown(name_raw)
-    return PatientID(code, sex, dob, name)
-end
-
-struct RecordingID
-    startdate::Union{Date,Missing}
-    admincode::Union{String,Missing}
-    technician::Union{String,Missing}
-    equipment::Union{String,Missing}
-end
-
-function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
-    s = split(raw, ' ', keepempty=false)
-    length(s) == 5 || return
-    first(s) == "Startdate" || return
-    _, start_raw, admin_raw, tech_raw, equip_raw = s
-    startdate = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), start_raw)
-    startdate === nothing && return
-    admincode = edf_unknown(admin_raw)
-    technician = edf_unknown(tech_raw)
-    equipment = edf_unknown(equip_raw)
-    return RecordingID(startdate, admincode, technician, equipment)
-end
-
-"""
-    EDFHeader
-
-Type representing the header record for an EDF file.
-
-## Fields
-
-* `version` (`String`): Version of the data format
-* `patient` (`String` or `PatientID`): Local patient identification
-* `recording` (`String` or `RecordingID`): Local recording identification
-* `start` (`DateTime`): Date and time the recording started
-* `n_records` (`Int`): Number of data records
-* `duration` (`Float64`): Duration of a data record in seconds
-* `n_signals` (`Int`): Number of signals in a data record
-* `nb_header` (`Int`): Total number of raw bytes in the header record
-"""
-struct EDFHeader
-    version::String
-    patient::Union{String,PatientID}
-    recording::Union{String,RecordingID}
-    continuous::Bool
-    start::DateTime
-    n_records::Int
-    duration::Float64
-    n_signals::Int
-    nb_header::Int
-end
-
 """
     EDFFile
 
@@ -122,17 +139,21 @@ and the fields of the types of those fields.
 
 * `header` (`EDFHeader`): File-level metadata extracted from the file header
 * `signals` (`Vector{Signal}`): All signals extracted from the data records
+* `annotations` (`Vector{RecordAnnotation}` or `Nothing`): A vector of length
+  `header.n_records` where each element contains annotations for the corresponding
+  data record, if annotations are present in the file
 """
 struct EDFFile
     header::EDFHeader
     signals::Vector{Signal}
+    annotations::Union{Vector{RecordAnnotation},Nothing}
 end
 
 function EDFFile(file::AbstractString)
     open(file, "r") do io
-        header, data = read_header(io)
-        read_data!(io, data, header)
-        EDFFile(header, data)
+        header, data, anno_idx = read_header(io)
+        data, annos = read_data!(io, data, header, anno_idx)
+        EDFFile(header, data, annos)
     end
 end
 

@@ -1,13 +1,13 @@
-# EDFFiles.jl
+# EDF.jl
 
-EDFFiles is a Julia package for working with [European Data Format (EDF)](https://edfplus.info)
+EDF.jl is a Julia package for working with [European Data Format (EDF)](https://edfplus.info)
 files, including reading, writing, and an intermediate representation for direct access
 to data.
 
 ## Package API
 
 ```@meta
-CurrentModule = EDFFiles
+CurrentModule = EDF
 ```
 ### Representation of Data
 
@@ -18,10 +18,10 @@ and a vector of `Signal`s.
 
 ```@docs
 EDFFile
-EDFFiles.EDFHeader
-EDFFiles.Signal
-EDFFiles.RecordAnnotation
-EDFFiles.AnnotationsList
+EDF.EDFHeader
+EDF.Signal
+EDF.RecordAnnotation
+EDF.AnnotationsList
 ```
 
 Per the original EDF specification, the signals are assumed to be continuous across data

@@ -6,5 +6,4 @@ makedocs(modules=[EDF],
          authors="Beacon Biosignals, Inc.",
          pages=["Functionality" => "index.md"])
 
-# Comment out until the package is open source
-#deploydocs(repo="github.com/beacon-biosignals/EDF.jl.git")
+deploydocs(repo="github.com/beacon-biosignals/EDF.jl.git")

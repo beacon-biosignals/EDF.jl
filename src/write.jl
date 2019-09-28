@@ -20,9 +20,9 @@ _write(io::IO, ::Missing) = Base.write(io, "X")
 _write(io::IO, x::AbstractFloat) = Base.write(io, string(isinteger(x) ? trunc(Int, x) : x))
 
 function _write(io::IO, tal::AnnotationsList)
-    nb = _write(io, tal.offset >= 0 ? '+' : '-') + _write(io, tal.offset)
-    if tal.duration !== nothing
-        nb += Base.write(io, 0x15) + _write(io, tal.duration)
+    nb = _write(io, tal.offset_in_seconds >= 0 ? '+' : '-') + _write(io, tal.offset_in_seconds)
+    if tal.duration_in_seconds !== nothing
+        nb += Base.write(io, 0x15) + _write(io, tal.duration_in_seconds)
     end
     nb += Base.write(io, 0x14)
     mark = position(io)
@@ -33,8 +33,8 @@ function _write(io::IO, tal::AnnotationsList)
 end
 
 function _write(io::IO, anno::RecordAnnotation)
-    nb = _write(io, anno.offset >= 0 ? '+' : '-') +
-         _write(io, anno.offset) +
+    nb = _write(io, anno.offset_in_seconds >= 0 ? '+' : '-') +
+         _write(io, anno.offset_in_seconds) +
          Base.write(io, 0x14, 0x14)
     mark = position(io)
     join(io, anno.event, '\x14')
@@ -69,7 +69,7 @@ function write_header(io::IO, file::File)
         write_padded(io, h.nb_header, 8) +
         write_padded(io, h.continuous ? "EDF+C" : "EDF+D", 44) +
         write_padded(io, h.n_records, 8) +
-        write_padded(io, h.duration, 8) +
+        write_padded(io, h.duration_in_seconds, 8) +
         write_padded(io, h.n_signals + has_anno, 4)
     pads = [16, 80, 8, 8, 8, 8, 8, 80, 8]
     av = Any["EDF Annotations", "", "", -1, 1, -32768, 32767, ""]

@@ -57,14 +57,14 @@ Type representing a time-stamp annotations list (TAL).
 
 # Fields
 
-* `offset` (`Float64`): Offset from the recording start time (specified in the header)
+* `offset_in_seconds` (`Float64`): Offset in seconds from the recording start time (specified in the header)
   at which the event in this TAL starts
-* `duration` (`Float64` or `Nothing`): Duration of the event, if specified
+* `duration_in_seconds` (`Float64` or `Nothing`): Duration of the event in seconds, if specified
 * `event` (`Vector{String}`): List of events for this TAL
 """
 struct AnnotationsList
-    offset::Float64
-    duration::Union{Float64,Nothing}
+    offset_in_seconds::Float64
+    duration_in_seconds::Union{Float64,Nothing}
     event::Vector{String}
 end
 
@@ -75,8 +75,8 @@ Type containing all annotations applied to a particular data record.
 
 # Fields
 
-* `offset` (`Float64`): Offset from the recording start time (specified in the header)
-  at which the current data record starts
+* `offset_in_seconds` (`Float64`): Offset in seconds from the recording start
+  time (specified in the header) at which the current data record starts
 * `event` (`Vector{String}` or `Nothing`): The event that marks the start of the data
   record, if applicable
 * `annotations` (`Vector{EDF.AnnotationsList}`): The time-stamped annotations lists (TALs)
@@ -84,13 +84,15 @@ Type containing all annotations applied to a particular data record.
 * `n_bytes` (`Int`): The number of raw bytes per data record in the "EDF Annotation" signal
 """
 mutable struct RecordAnnotation
-    offset::Float64
+    offset_in_seconds::Float64
     event::Union{Vector{String},Nothing}
     annotations::Vector{AnnotationsList}
     n_bytes::Int
 
     RecordAnnotation() = new()
-    RecordAnnotation(offset, event, annotations, n_bytes) = new(offset, event, annotations, n_bytes)
+    function RecordAnnotation(offset_in_seconds, event, annotations, n_bytes)
+        return new(offset_in_seconds, event, annotations, n_bytes)
+    end
 end
 
 """
@@ -105,7 +107,7 @@ Type representing the header record for an EDF file.
 * `recording` (`String` or `EDF.RecordingID`): Local recording identification
 * `start` (`DateTime`): Date and time the recording started
 * `n_records` (`Int`): Number of data records
-* `duration` (`Float64`): Duration of a data record in seconds
+* `duration_in_seconds` (`Float64`): Duration of a data record in seconds
 * `n_signals` (`Int`): Number of signals in a data record
 * `nb_header` (`Int`): Total number of raw bytes in the header record
 """
@@ -116,7 +118,7 @@ struct Header
     continuous::Bool
     start::DateTime
     n_records::Int
-    duration::Float64
+    duration_in_seconds::Float64
     n_signals::Int
     nb_header::Int
 end

@@ -128,7 +128,7 @@ function read_header(io::IO)
         n_signals -= 1
     end
 
-    @assert position(io) == nb_header
+    # @assert position(io) == nb_header
 
     h = Header(version, patient_id, recording_id, continuous, start, n_records,
                duration, n_signals, nb_header)
@@ -156,7 +156,7 @@ function read_data!(io::IO, signals::Vector{Signal}, header::Header, anno_idx::I
                 while !eof(record) && Base.peek(record) != 0x0
                     toplevel, offset, duration, events = read_tal(record)
                     if toplevel
-                        anno.offset = offset
+                        anno.offset_in_seconds = offset
                         anno.event = events
                         anno.n_bytes = n_bytes
                     else

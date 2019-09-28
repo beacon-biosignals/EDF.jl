@@ -45,7 +45,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test edf.header.continuous
     @test edf.header.start == DateTime(2014, 4, 29, 22, 19, 44)
     @test edf.header.n_records == 6
-    @test edf.header.duration == 1.0
+    @test edf.header.duration_in_seconds == 1.0
     @test edf.header.n_signals == 139
     @test edf.signals isa Vector{Signal}
     @test length(edf.signals) == edf.header.n_signals
@@ -89,7 +89,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test uneven.header.continuous
     @test uneven.header.start == DateTime(2000, 7, 13, 12, 5, 48)
     @test uneven.header.n_records == 11
-    @test uneven.header.duration == 10.0
+    @test uneven.header.duration_in_seconds == 10.0
     @test uneven.header.n_signals == 2
     @test uneven.signals[1].n_samples != uneven.signals[2].n_samples
     @test uneven.annotations === nothing

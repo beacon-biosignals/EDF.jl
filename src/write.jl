@@ -95,7 +95,8 @@ function write_data(io::IO, file::File)
         for signal in file.signals
             n = signal.n_samples
             s = (i - 1) * n
-            b += Base.write(io, view(signal.samples, s+1:s+n))
+            stop = min(s + n, length(signal.samples))
+            b += Base.write(io, view(signal.samples, s+1:stop))
         end
         if file.annotations !== nothing
             b += _write(io, file.annotations[i])

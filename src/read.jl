@@ -128,7 +128,7 @@ function read_header(io::IO)
         n_signals -= 1
     end
 
-    # @assert position(io) == nb_header
+    @assert position(io) == nb_header
 
     h = Header(version, patient_id, recording_id, continuous, start, n_records,
                duration, n_signals, nb_header)

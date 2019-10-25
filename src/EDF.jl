@@ -133,10 +133,10 @@ Type representing a single signal extracted from an EDF file.
 * `label` (`String`): The name of the signal, e.g. `F3-M2`
 * `transducer` (`String`): Transducer type
 * `physical_units` (`String`): Units of measure for the signal, e.g. `uV`
-* `physical_min` (`Int16`): The physical minimum value of the signal
-* `physical_max` (`Int16`): The physical maximum value of the signal
-* `digital_min` (`Int16`): The minimum value of the signal that could occur in a data record
-* `digital_max` (`Int16`): The maximum value of the signal that could occur in a data record
+* `physical_min` (`Float32`): The physical minimum value of the signal
+* `physical_max` (`Float32`): The physical maximum value of the signal
+* `digital_min` (`Float32`): The minimum value of the signal that could occur in a data record
+* `digital_max` (`Float32`): The maximum value of the signal that could occur in a data record
 * `prefilter` (`String`): Description of any prefiltering done to the signal
 * `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
 * `samples` (`Vector{Int16}`): The sample values of the signal
@@ -145,10 +145,10 @@ mutable struct Signal
     label::String
     transducer::String
     physical_units::String
-    physical_min::Int16
-    physical_max::Int16
-    digital_min::Int16
-    digital_max::Int16
+    physical_min::Float32
+    physical_max::Float32
+    digital_min::Float32
+    digital_max::Float32
     prefilter::String
     n_samples::Int16
     samples::Vector{Int16}

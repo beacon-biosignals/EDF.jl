@@ -93,4 +93,11 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test uneven.header.n_signals == 2
     @test uneven.signals[1].n_samples != uneven.signals[2].n_samples
     @test uneven.annotations === nothing
+
+    nonint = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
+    s = first(nonint.signals)
+    @test s.physical_min ≈ -29483.1f0
+    @test s.physical_max ≈ 29483.12f0
+    @test s.digital_min ≈ -32767.0f0
+    @test s.digital_max ≈ 32767.0f0
 end

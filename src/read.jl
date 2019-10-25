@@ -59,13 +59,7 @@ function set!(io::IO, sigs::Vector{Signal}, name::Symbol, sz::Integer)
     return set!(io, strip, sigs, name, sz)
 end
 
-# TODO: Emit warning?
-"""
-    parse_int16(raw::String)
-
-Attempt to parse `raw` as an `Int16`, returning 0 if the parsing fails.
-"""
-parse_int16(raw::AbstractString) = something(tryparse(Int16, raw), zero(Int16))
+parse_float(raw::AbstractString) = something(tryparse(Float32, raw), NaN32)
 
 #####
 ##### Reading
@@ -110,12 +104,12 @@ function read_header(io::IO)
     set!(io, signals, :label, 16)
     set!(io, signals, :transducer, 80)
     set!(io, signals, :physical_units, 8)
-    set!(io, parse_int16, signals, :physical_min, 8)
-    set!(io, parse_int16, signals, :physical_max, 8)
-    set!(io, parse_int16, signals, :digital_min, 8)
-    set!(io, parse_int16, signals, :digital_max, 8)
+    set!(io, parse_float, signals, :physical_min, 8)
+    set!(io, parse_float, signals, :physical_max, 8)
+    set!(io, parse_float, signals, :digital_min, 8)
+    set!(io, parse_float, signals, :digital_max, 8)
     set!(io, signals, :prefilter, 80)
-    set!(io, parse_int16, signals, :n_samples, 8)
+    set!(io, x->parse(Int16, x), signals, :n_samples, 8)
 
     skip(io, 32 * n_signals)  # Reserved
 

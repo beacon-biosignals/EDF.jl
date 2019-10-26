@@ -182,6 +182,16 @@ function Base.show(io::IO, edf::File)
 end
 
 #####
+##### Utilities
+#####
+
+function decode(signal::Signal)
+    digital_range = signal.digital_max - signal.digital_min
+    physical_range = signal.physical_max - signal.physical_min
+    return @. ((signal.samples - signal.digital_min) / digital_range) * physical_range + signal.physical_min
+end
+
+#####
 ##### The rest
 #####
 

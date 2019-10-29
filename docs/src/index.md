@@ -46,6 +46,7 @@ which yields a total of `header.n_records` items.
 
 ```@docs
 EDF.read
+EDF.decode
 ```
 
 ### Writing

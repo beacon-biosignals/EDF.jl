@@ -139,7 +139,11 @@ Type representing a single signal extracted from an EDF file.
 * `digital_max` (`Float32`): The maximum value of the signal that could occur in a data record
 * `prefilter` (`String`): Description of any prefiltering done to the signal
 * `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
-* `samples` (`Vector{Int16}`): The sample values of the signal
+* `samples` (`Vector{Int16}`): The encoded sample values of the signal
+
+!!! note
+    Samples are stored in a `Signal` object in the same encoding as they appear in raw
+    EDF files. See [`decode`](@ref) for decoding signals to their physical values.
 """
 mutable struct Signal
     label::String
@@ -185,6 +189,11 @@ end
 ##### Utilities
 #####
 
+"""
+    EDF.decode(signal::Signal)
+
+Decode the sample values in the given signal and return a `Vector` of the physical values.
+"""
 function decode(signal::Signal)
     digital_range = signal.digital_max - signal.digital_min
     physical_range = signal.physical_max - signal.physical_min

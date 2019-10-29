@@ -100,4 +100,18 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test s.physical_max ≈ 29483.12f0
     @test s.digital_min ≈ -32767.0f0
     @test s.digital_max ≈ 32767.0f0
+
+    # Python code for generating the comparison values used here:
+    # ```
+    # import mne
+    # edf = mne.io.read_raw_edf("test/data/test_float_extrema.edf")
+    # signal = edf.get_data()[0] * 1e6  # The 1e6 converts volts back to microvolts
+    # with open("test/data/mne_values.csv", "w") as f:
+    #     for x in signal:
+    #         f.write("%s\n" % x)
+    # ```
+    mne = map(line->parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
+    for (a, b) in zip(EDF.decode(s), mne)
+        @test a ≈ b atol=0.01
+    end
 end

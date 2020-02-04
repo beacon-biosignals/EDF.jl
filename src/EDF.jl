@@ -97,7 +97,7 @@ end
     EDF.Header
 
 Type representing the header record for an EDF file. `EDF.File`s parsed from
-files which are not EDF+ compliant do not specify whether data records are contiguous;
+files which are not EDF+ compliant do not specify if data records are contiguous;
 data records in these files are considered contiguous by default.
 
 ## Fields

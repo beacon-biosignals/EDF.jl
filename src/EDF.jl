@@ -96,16 +96,14 @@ end
 """
     EDF.Header
 
-Type representing the header record for an EDF file. `EDF.File`s parsed from
-files which are not EDF+ compliant do not specify if data records are contiguous;
-data records in these files are considered contiguous by default.
+Type representing the header record for an EDF file.
 
 ## Fields
 
 * `version` (`String`): Version of the data format
 * `patient` (`String` or `EDF.PatientID`): Local patient identification
 * `recording` (`String` or `EDF.RecordingID`): Local recording identification
-* `continuous` (`Bool`): If true, data records are contiguous
+* `continuous` (`Bool`): If true, data records are contiguous. This field defaults to `true` for files that are EDF-compliant but not EDF+-compliant.
 * `start` (`DateTime`): Date and time the recording started
 * `n_records` (`Int`): Number of data records
 * `duration` (`Float64`): Duration of a data record in seconds

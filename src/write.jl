@@ -62,15 +62,16 @@ end
 function write_header(io::IO, file::File)
     h = file.header
     has_anno = file.annotations !== nothing
+    signal_count = h.n_signals + has_anno
     b = write_padded(io, h.version, 8) +
         write_padded(io, h.patient, 80) +
         write_padded(io, h.recording, 80) +
         _write(io, Dates.format(h.start, dateformat"dd\.mm\.yyHH\.MM\.SS")) +
-        write_padded(io, h.nb_header, 8) +
+        write_padded(io, 256 * (signal_count + 1), 8) +
         write_padded(io, h.continuous ? "EDF+C" : "EDF+D", 44) +
         write_padded(io, h.n_records, 8) +
         write_padded(io, h.duration, 8) +
-        write_padded(io, h.n_signals + has_anno, 4)
+        write_padded(io, signal_count, 4)
     pads = [16, 80, 8, 8, 8, 8, 8, 80, 8]
     av = Any["EDF Annotations", "", "", -1, 1, -32768, 32767, ""]
     has_anno && push!(av, div(first(file.annotations).n_bytes, 2))

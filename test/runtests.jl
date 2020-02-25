@@ -64,7 +64,8 @@ const DATADIR = joinpath(@__DIR__, "data")
 
     io = IOBuffer()
     nb = EDF.write_header(io, edf)
-    @test nb == edf.header.nb_header
+    has_annotations = edf.annotations !== nothing
+    @test nb == 256 * (edf.header.n_signals + has_annotations + 1)
     EDF.write_data(io, edf)
     seekstart(io)
     h, d, i = EDF.read_header(io)

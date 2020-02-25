@@ -108,7 +108,6 @@ Type representing the header record for an EDF file.
 * `n_records` (`Int`): Number of data records
 * `duration` (`Float64`): Duration of a data record in seconds
 * `n_signals` (`Int`): Number of signals in a data record
-* `nb_header` (`Int`): Total number of raw bytes in the header record
 """
 struct Header
     version::String
@@ -119,7 +118,6 @@ struct Header
     n_records::Int
     duration::Float64
     n_signals::Int
-    nb_header::Int
 end
 
 # TODO: Make the vector of samples mmappable

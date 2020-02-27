@@ -98,7 +98,7 @@ end
 
 Type representing the header record for an EDF file.
 
-## Fields
+# Fields
 
 * `version` (`String`): Version of the data format
 * `patient` (`String` or `EDF.PatientID`): Local patient identification
@@ -119,6 +119,24 @@ struct FileHeader
     duration::Float64
     n_signals::Int
 end
+
+"""
+    EDF.SignalHeader
+
+Type representing the header record for a single EDF signal.
+
+# Fields
+
+* `label` (`String`): The name of the signal, e.g. `F3-M2`
+* `transducer` (`String`): Transducer type
+* `physical_units` (`String`): Units of measure for the signal, e.g. `uV`
+* `physical_min` (`Float32`): The physical minimum value of the signal
+* `physical_max` (`Float32`): The physical maximum value of the signal
+* `digital_min` (`Float32`): The minimum value of the signal that could occur in a data record
+* `digital_max` (`Float32`): The maximum value of the signal that could occur in a data record
+* `prefilter` (`String`): Description of any prefiltering done to the signal
+* `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
+"""
 
 mutable struct SignalHeader
     label::String
@@ -143,15 +161,7 @@ Type representing a single signal extracted from an EDF file.
 
 # Fields
 
-* `label` (`String`): The name of the signal, e.g. `F3-M2`
-* `transducer` (`String`): Transducer type
-* `physical_units` (`String`): Units of measure for the signal, e.g. `uV`
-* `physical_min` (`Float32`): The physical minimum value of the signal
-* `physical_max` (`Float32`): The physical maximum value of the signal
-* `digital_min` (`Float32`): The minimum value of the signal that could occur in a data record
-* `digital_max` (`Float32`): The maximum value of the signal that could occur in a data record
-* `prefilter` (`String`): Description of any prefiltering done to the signal
-* `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
+* `header` (`SignalHeader`): Signal-level metadata extracted from the signal header
 * `samples` (`Vector{Int16}`): The encoded sample values of the signal
 
 !!! note

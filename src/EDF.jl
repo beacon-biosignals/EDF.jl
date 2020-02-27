@@ -94,7 +94,7 @@ mutable struct RecordAnnotation
 end
 
 """
-    EDF.Header
+    EDF.FileHeader
 
 Type representing the header record for an EDF file.
 
@@ -109,7 +109,7 @@ Type representing the header record for an EDF file.
 * `duration` (`Float64`): Duration of a data record in seconds
 * `n_signals` (`Int`): Number of signals in a data record
 """
-struct Header
+struct FileHeader
     version::String
     patient::Union{String,PatientID}
     recording::Union{String,RecordingID}
@@ -168,14 +168,14 @@ and the fields of the types of those fields.
 
 # Fields
 
-* `header` (`EDF.Header`): File-level metadata extracted from the file header
+* `header` (`EDF.FileHeader`): File-level metadata extracted from the file header
 * `signals` (`Vector{EDF.Signal}`): All signals extracted from the data records
 * `annotations` (`Vector{EDF.RecordAnnotation}` or `Nothing`): A vector of length
   `header.n_records` where each element contains annotations for the corresponding
   data record, if annotations are present in the file
 """
 struct File
-    header::Header
+    header::FileHeader
     signals::Vector{Signal}
     annotations::Union{Vector{RecordAnnotation},Nothing}
 end

@@ -124,12 +124,12 @@ function read_header(io::IO)
 
     @assert position(io) == nb_header
 
-    h = Header(version, patient_id, recording_id, continuous, start, n_records,
+    h = FileHeader(version, patient_id, recording_id, continuous, start, n_records,
                duration, n_signals)
     return (h, signals, anno_idx)
 end
 
-function read_data!(io::IO, signals::Vector{Signal}, header::Header, ::Nothing)
+function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, ::Nothing)
     for i = 1:header.n_records, signal in signals
         append!(signal.samples, reinterpret(Int16, Base.read(io, 2 * signal.n_samples)))
     end
@@ -137,7 +137,7 @@ function read_data!(io::IO, signals::Vector{Signal}, header::Header, ::Nothing)
     return (signals, nothing)
 end
 
-function read_data!(io::IO, signals::Vector{Signal}, header::Header, anno_idx::Integer)
+function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, anno_idx::Integer)
     annos = RecordAnnotation[]
     for i = 1:header.n_records
         anno = RecordAnnotation()

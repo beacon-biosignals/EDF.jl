@@ -50,7 +50,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test edf.signals isa Vector{Signal}
     @test length(edf.signals) == edf.header.n_signals
     for s in edf.signals
-        @test length(s.samples) == s.n_samples * edf.header.n_records
+        @test length(s.samples) == s.header.n_samples * edf.header.n_records
     end
     expected = [
         RecordAnnotation(0.0, String[], [AnnotationsList(0.0, nothing, ["start"])], 1024),
@@ -92,15 +92,16 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test uneven.header.n_records == 11
     @test uneven.header.duration == 10.0
     @test uneven.header.n_signals == 2
-    @test uneven.signals[1].n_samples != uneven.signals[2].n_samples
+    @test uneven.signals[1].header.n_samples != uneven.signals[2].header.n_samples
     @test uneven.annotations === nothing
 
     nonint = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
     s = first(nonint.signals)
-    @test s.physical_min ≈ -29483.1f0
-    @test s.physical_max ≈ 29483.12f0
-    @test s.digital_min ≈ -32767.0f0
-    @test s.digital_max ≈ 32767.0f0
+    h = s.header
+    @test h.physical_min ≈ -29483.1f0
+    @test h.physical_max ≈ 29483.12f0
+    @test h.digital_min ≈ -32767.0f0
+    @test h.digital_max ≈ 32767.0f0
 
     # Python code for generating the comparison values used here:
     # ```

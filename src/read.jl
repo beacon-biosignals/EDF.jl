@@ -47,10 +47,11 @@ to a chunk of size `sz` read from `io` as a `String`.
 """
 function set!(io::IO, f, sigs::Vector{Signal}, name::Symbol, sz::Integer)
     n = length(sigs)
-    T = fieldtype(Signal, name)
+    T = fieldtype(SignalHeader, name)
     @inbounds for i = 1:n
+        h = sigs[i].header
         x = f(String(Base.read(io, sz)))
-        setfield!(sigs[i], name, convert(T, x))
+        setfield!(h, name, convert(T, x))
     end
     return sigs
 end
@@ -97,6 +98,11 @@ function read_header(io::IO)
 
     signals = [Signal() for _ = 1:n_signals]
 
+    for signal in signals
+        signal.header = SignalHeader()
+        signal.samples = Vector{Int16}()  # Otherwise it's #undef
+    end
+
     # TODO: EDF+ allows floating point data which does not fit within the Int16 limits.
     # See https://edfplus.info/specs/edffloat.html for details. MNE seems to implement
     # this(?)
@@ -113,11 +119,9 @@ function read_header(io::IO)
 
     skip(io, 32 * n_signals)  # Reserved
 
-    for signal in signals
-        signal.samples = Vector{Int16}()  # Otherwise it's #undef
-    end
 
-    anno_idx = findfirst(signal->signal.label == "EDF Annotations", signals)
+
+    anno_idx = findfirst(signal->signal.header.label == "EDF Annotations", signals)
     if anno_idx !== nothing
         n_signals -= 1
     end
@@ -131,7 +135,7 @@ end
 
 function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, ::Nothing)
     for i = 1:header.n_records, signal in signals
-        append!(signal.samples, reinterpret(Int16, Base.read(io, 2 * signal.n_samples)))
+        append!(signal.samples, reinterpret(Int16, Base.read(io, 2 * signal.header.n_samples)))
     end
     @assert eof(io)
     return (signals, nothing)
@@ -143,7 +147,7 @@ function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, anno_id
         anno = RecordAnnotation()
         anno.annotations = AnnotationsList[]
         for (j, signal) in enumerate(signals)
-            n_bytes = 2 * signal.n_samples
+            n_bytes = 2 * signal.header.n_samples
             data = Base.read(io, n_bytes)
             if j == anno_idx
                 record = IOBuffer(data)

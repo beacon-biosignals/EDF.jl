@@ -120,6 +120,20 @@ struct FileHeader
     n_signals::Int
 end
 
+mutable struct SignalHeader
+    label::String
+    transducer::String
+    physical_units::String
+    physical_min::Float32
+    physical_max::Float32
+    digital_min::Float32
+    digital_max::Float32
+    prefilter::String
+    n_samples::Int16
+
+    SignalHeader() = new()
+end
+
 # TODO: Make the vector of samples mmappable
 # Also TODO: Refactor to make signals immutable
 """
@@ -145,15 +159,7 @@ Type representing a single signal extracted from an EDF file.
     EDF files. See [`decode`](@ref) for decoding signals to their physical values.
 """
 mutable struct Signal
-    label::String
-    transducer::String
-    physical_units::String
-    physical_min::Float32
-    physical_max::Float32
-    digital_min::Float32
-    digital_max::Float32
-    prefilter::String
-    n_samples::Int16
+    header::SignalHeader
     samples::Vector{Int16}
 
     Signal() = new()
@@ -194,9 +200,9 @@ end
 Decode the sample values in the given signal and return a `Vector` of the physical values.
 """
 function decode(signal::Signal)
-    digital_range = signal.digital_max - signal.digital_min
-    physical_range = signal.physical_max - signal.physical_min
-    return @. ((signal.samples - signal.digital_min) / digital_range) * physical_range + signal.physical_min
+    digital_range = signal.header.digital_max - signal.header.digital_min
+    physical_range = signal.header.physical_max - signal.header.physical_min
+    return @. ((signal.samples - signal.header.digital_min) / digital_range) * physical_range + signal.header.physical_min
 end
 
 #####

@@ -75,9 +75,10 @@ function write_header(io::IO, file::File)
     pads = [16, 80, 8, 8, 8, 8, 8, 80, 8]
     av = Any["EDF Annotations", "", "", -1, 1, -32768, 32767, ""]
     has_anno && push!(av, div(first(file.annotations).n_bytes, 2))
-    for (i, w) in zip(1:fieldcount(Signal)-1, pads)
+    for (i, w) in zip(1:fieldcount(SignalHeader), pads)
         for s in file.signals
-            b += write_padded(io, getfield(s, i), w)
+            h = s.header
+            b += write_padded(io, getfield(h, i), w)
         end
         if has_anno
             b += write_padded(io, av[i], w)
@@ -94,7 +95,7 @@ function write_data(io::IO, file::File)
     b = 0
     for i = 1:file.header.n_records
         for signal in file.signals
-            n = signal.n_samples
+            n = signal.header.n_samples
             s = (i - 1) * n
             stop = min(s + n, length(signal.samples))
             b += Base.write(io, view(signal.samples, s+1:stop))

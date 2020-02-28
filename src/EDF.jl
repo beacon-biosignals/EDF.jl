@@ -69,13 +69,10 @@ A type representing a time-stamp annotations list (TAL).
 * `duration` (`Float64` or `Nothing`): Duration of the event, if specified
 * `events` (`Vector{String}`): List of events for this TAL
 """
-mutable struct TimestampAnnotation <: AbstractAnnotation
+struct TimestampAnnotation <: AbstractAnnotation
     offset::Float64
     duration::Union{Float64,Nothing}
     events::Vector{String}
-
-    TimestampAnnotation() = new()
-    TimestampAnnotation(offset, duration, events) = new(offset, duration, events)
 end
 
 """
@@ -90,12 +87,9 @@ A type representing a record-level annotation in an `EDF.File`.
 * `events` (`Vector{String}` or `Nothing`): The events that mark the start of the data
   record, if applicable
 """
-mutable struct RecordAnnotation <: AbstractAnnotation
+struct RecordAnnotation <: AbstractAnnotation
     offset::Float64
     events::Union{Vector{String},Nothing}
-
-    RecordAnnotation() = new()
-    RecordAnnotation(offset, events) = new(offset, events)
 end
 
 """
@@ -122,21 +116,19 @@ Type representing the header record for an EDF file.
 * `version` (`String`): Version of the data format
 * `patient` (`String` or `EDF.PatientID`): Local patient identification
 * `recording` (`String` or `EDF.RecordingID`): Local recording identification
-* `continuous` (`Bool`): If true, data records are contiguous. This field defaults to `true` for files that are EDF-compliant but not EDF+-compliant.
 * `start` (`DateTime`): Date and time the recording started
+* `continuous` (`Bool`): If true, data records are contiguous. This field defaults to `true` for files that are EDF-compliant but not EDF+-compliant.
 * `n_records` (`Int`): Number of data records
 * `duration` (`Float64`): Duration of a data record in seconds
-* `n_signals` (`Int`): Number of signals in a data record
 """
 struct FileHeader
     version::String
     patient::Union{String,PatientID}
     recording::Union{String,RecordingID}
-    continuous::Bool
     start::DateTime
+    continuous::Bool
     n_records::Int
     duration::Float64
-    n_signals::Int
 end
 
 """
@@ -156,8 +148,7 @@ Type representing the header record for a single EDF signal.
 * `prefilter` (`String`): Description of any prefiltering done to the signal
 * `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
 """
-
-mutable struct SignalHeader
+struct SignalHeader
     label::String
     transducer::String
     physical_units::String
@@ -167,23 +158,29 @@ mutable struct SignalHeader
     digital_max::Float32
     prefilter::String
     n_samples::Int16
-
-    SignalHeader() = new()
 end
 
 """
-    AbstractSignal
+    EDF.AnnotationHeader
 
-A type representing a signal in an `EDF.File`. For the sake of backwards
-compatibility with EDF software, annotations for an EDF+ file are read
-as a single signal.
+Type representing the header record for an `AnnotationList`
+
+# Fields
+
+* `n_samples` (`Int16`): The number of samples in a single data record
 """
-abstract type AbstractSignal end
+struct AnnotationHeader
+    n_samples::Int16
+end
+
+AnnotationHeader(header::SignalHeader) = AnnotationHeader(header.n_samples)
+
+SignalHeader(header::AnnotationHeader) = SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
+
 
 # TODO: Make the vector of samples mmappable
-# Also TODO: Refactor to make signals immutable
 """
-    EDF.Signal <: EDF.AbstractSignal
+    EDF.Signal
 
 Type representing a single signal extracted from an EDF file.
 
@@ -196,16 +193,14 @@ Type representing a single signal extracted from an EDF file.
     Samples are stored in a `Signal` object in the same encoding as they appear in raw
     EDF files. See [`decode`](@ref) for decoding signals to their physical values.
 """
-mutable struct Signal <: AbstractSignal
+struct Signal
     header::SignalHeader
     samples::Vector{Int16}
-
-    Signal() = new()
 end
 
 
 """
-    EDF.AnnotationList <: AbstractSignal
+    EDF.AnnotationList
 
 Type representing a single signal extracted from an EDF file.
 
@@ -214,11 +209,9 @@ Type representing a single signal extracted from an EDF file.
 * `header` (`SignalHeader`): Signal-level metadata extracted from the signal header
 * `records` (`Vector{DataRecord}`): EDF+ file annotation information on a per-record basis
 """
-mutable struct AnnotationList <: AbstractSignal
-    header::SignalHeader
+struct AnnotationList
+    header::AnnotationHeader
     records::Vector{DataRecord}
-
-    AnnotationList() = new()
 end
 
 """
@@ -262,7 +255,7 @@ function decode(signal::Signal)
 end
 
 #####
-##### The rest
+##### I/O
 #####
 
 include("read.jl")

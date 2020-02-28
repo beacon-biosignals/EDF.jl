@@ -51,47 +51,66 @@ struct RecordingID
 end
 
 """
-    EDF.AnnotationsList
+    AbstractAnnotation
 
-Type representing a time-stamp annotations list (TAL).
+A type representing an EDF+ Annotation.
+"""
+abstract type AbstractAnnotation end
+
+"""
+    TimestampAnnotation <: AbstractAnnotation
+
+A type representing a time-stamp annotations list (TAL).
 
 # Fields
 
 * `offset` (`Float64`): Offset from the recording start time (specified in the header)
   at which the event in this TAL starts
 * `duration` (`Float64` or `Nothing`): Duration of the event, if specified
-* `event` (`Vector{String}`): List of events for this TAL
+* `events` (`Vector{String}`): List of events for this TAL
 """
-struct AnnotationsList
+mutable struct TimestampAnnotation <: AbstractAnnotation
     offset::Float64
     duration::Union{Float64,Nothing}
-    event::Vector{String}
+    events::Vector{String}
+
+    TimestampAnnotation() = new()
+    TimestampAnnotation(offset, duration, events) = new(offset, duration, events)
 end
 
 """
-    EDF.RecordAnnotation
+    RecordAnnotation <: AbstractAnnotation
 
-Type containing all annotations applied to a particular data record.
+A type representing a record-level annotation in an `EDF.File`.
 
 # Fields
 
 * `offset` (`Float64`): Offset from the recording start time (specified in the header)
   at which the current data record starts
-* `event` (`Vector{String}` or `Nothing`): The event that marks the start of the data
+* `events` (`Vector{String}` or `Nothing`): The events that mark the start of the data
   record, if applicable
-* `annotations` (`Vector{EDF.AnnotationsList}`): The time-stamped annotations lists (TALs)
-  in the current data record
-* `n_bytes` (`Int`): The number of raw bytes per data record in the "EDF Annotation" signal
 """
-mutable struct RecordAnnotation
+mutable struct RecordAnnotation <: AbstractAnnotation
     offset::Float64
-    event::Union{Vector{String},Nothing}
-    annotations::Vector{AnnotationsList}
-    n_bytes::Int
+    events::Union{Vector{String},Nothing}
 
     RecordAnnotation() = new()
-    RecordAnnotation(offset, event, annotations, n_bytes) = new(offset, event, annotations, n_bytes)
+    RecordAnnotation(offset, events) = new(offset, events)
 end
+
+"""
+    TimestampAnnotationList
+
+An alias for a list of TimestampAnnotations, if present in a `DataRecord`.
+"""
+const TimestampAnnotationList = Union{Vector{TimestampAnnotation}, Nothing}
+
+"""
+    DataRecord
+
+A representation of all annotation information in an EDF+ data record.
+"""
+const DataRecord = Pair{RecordAnnotation, TimestampAnnotationList}
 
 """
     EDF.FileHeader
@@ -152,10 +171,19 @@ mutable struct SignalHeader
     SignalHeader() = new()
 end
 
+"""
+    AbstractSignal
+
+A type representing a signal in an `EDF.File`. For the sake of backwards
+compatibility with EDF software, annotations for an EDF+ file are read
+as a single signal.
+"""
+abstract type AbstractSignal end
+
 # TODO: Make the vector of samples mmappable
 # Also TODO: Refactor to make signals immutable
 """
-    EDF.Signal
+    EDF.Signal <: EDF.AbstractSignal
 
 Type representing a single signal extracted from an EDF file.
 
@@ -168,11 +196,29 @@ Type representing a single signal extracted from an EDF file.
     Samples are stored in a `Signal` object in the same encoding as they appear in raw
     EDF files. See [`decode`](@ref) for decoding signals to their physical values.
 """
-mutable struct Signal
+mutable struct Signal <: AbstractSignal
     header::SignalHeader
     samples::Vector{Int16}
 
     Signal() = new()
+end
+
+
+"""
+    EDF.AnnotationList <: AbstractSignal
+
+Type representing a single signal extracted from an EDF file.
+
+# Fields
+
+* `header` (`SignalHeader`): Signal-level metadata extracted from the signal header
+* `records` (`Vector{DataRecord}`): EDF+ file annotation information on a per-record basis
+"""
+mutable struct AnnotationList <: AbstractSignal
+    header::SignalHeader
+    records::Vector{DataRecord}
+
+    AnnotationList() = new()
 end
 
 """
@@ -193,7 +239,7 @@ and the fields of the types of those fields.
 struct File
     header::FileHeader
     signals::Vector{Signal}
-    annotations::Union{Vector{RecordAnnotation},Nothing}
+    annotations::Union{AnnotationList,Nothing}
 end
 
 function Base.show(io::IO, edf::File)

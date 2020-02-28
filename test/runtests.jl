@@ -1,5 +1,5 @@
 using EDF
-using EDF: AnnotationsList, PatientID, RecordAnnotation, RecordingID, Signal
+using EDF: AnnotationList, PatientID, RecordAnnotation, TimestampAnnotation, RecordingID, Signal
 using Dates
 using Test
 
@@ -53,14 +53,14 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test length(s.samples) == s.header.n_samples * edf.header.n_records
     end
     expected = [
-        RecordAnnotation(0.0, String[], [AnnotationsList(0.0, nothing, ["start"])], 1024),
-        RecordAnnotation(1.0, String[], [AnnotationsList(0.1344, 0.256, ["type A"])], 1024),
-        RecordAnnotation(2.0, String[], [AnnotationsList(0.3904, 1.0, ["type A"])], 1024),
-        RecordAnnotation(3.0, String[], [AnnotationsList(2.0, nothing, ["type B"])], 1024),
-        RecordAnnotation(4.0, String[], [AnnotationsList(2.5, 2.5, ["type A"])], 1024),
-        RecordAnnotation(5.0, String[], AnnotationsList[], 1024),
+        (RecordAnnotation(0.0, String[]) => [TimestampAnnotation(0.0, nothing, ["start"])]),
+        (RecordAnnotation(1.0, String[]) => [TimestampAnnotation(0.1344, 0.256, ["type A"])]),
+        (RecordAnnotation(2.0, String[]) => [TimestampAnnotation(0.3904, 1.0, ["type A"])]),
+        (RecordAnnotation(3.0, String[]) => [TimestampAnnotation(2.0, nothing, ["type B"])]),
+        (RecordAnnotation(4.0, String[]) => [TimestampAnnotation(2.5, 2.5, ["type A"])]),
+        (RecordAnnotation(5.0, String[]) => nothing),
     ]
-    @test deep_equal(edf.annotations, expected)
+    @test deep_equal(edf.annotations.records, expected)
 
     io = IOBuffer()
     nb = EDF.write_header(io, edf)

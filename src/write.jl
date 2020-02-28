@@ -14,19 +14,34 @@ function _write(io::IO, value::T) where T<:Union{PatientID,RecordingID}
     return nb
 end
 
+function write_annotations(io::IO, annotations::AnnotationList, index::Integer)
+    (record, timestamp_annotations) = annotations.records[index]
+    nb = _write(io, record)
+    if timestamp_annotations !== nothing
+        for annotation in timestamp_annotations
+            nb += _write(io, annotation)
+        end
+    end
+    while nb < annotations.header.n_samples * 2
+        nb += Base.write(io, 0x0)
+    end
+    @assert nb == annotations.header.n_samples * 2
+    return nb
+end
+
 _write(io::IO, value) = Base.write(io, string(value))
 _write(io::IO, date::Date) = Base.write(io, uppercase(Dates.format(date, dateformat"dd-u-yyyy")))
 _write(io::IO, ::Missing) = Base.write(io, "X")
 _write(io::IO, x::AbstractFloat) = Base.write(io, string(isinteger(x) ? trunc(Int, x) : x))
 
-function _write(io::IO, tal::AnnotationsList)
+function _write(io::IO, tal::TimestampAnnotation)
     nb = _write(io, tal.offset >= 0 ? '+' : '-') + _write(io, tal.offset)
     if tal.duration !== nothing
         nb += Base.write(io, 0x15) + _write(io, tal.duration)
     end
     nb += Base.write(io, 0x14)
     mark = position(io)
-    join(io, tal.event, '\x14')
+    join(io, tal.events, '\x14')
     nb += position(io) - mark
     nb += Base.write(io, 0x14, 0x0)
     return nb
@@ -37,16 +52,9 @@ function _write(io::IO, anno::RecordAnnotation)
          _write(io, anno.offset) +
          Base.write(io, 0x14, 0x14)
     mark = position(io)
-    join(io, anno.event, '\x14')
+    join(io, anno.events, '\x14')
     nb += position(io) - mark
     nb += Base.write(io, 0x0)
-    for tal in anno.annotations
-        nb += _write(io, tal)
-    end
-    while nb < anno.n_bytes
-        nb += Base.write(io, 0x0)
-    end
-    @assert nb == anno.n_bytes
     return nb
 end
 
@@ -73,15 +81,14 @@ function write_header(io::IO, file::File)
         write_padded(io, h.duration, 8) +
         write_padded(io, signal_count, 4)
     pads = [16, 80, 8, 8, 8, 8, 8, 80, 8]
-    av = Any["EDF Annotations", "", "", -1, 1, -32768, 32767, ""]
-    has_anno && push!(av, div(first(file.annotations).n_bytes, 2))
     for (i, w) in zip(1:fieldcount(SignalHeader), pads)
         for s in file.signals
             h = s.header
             b += write_padded(io, getfield(h, i), w)
         end
         if has_anno
-            b += write_padded(io, av[i], w)
+            h = file.annotations.header
+            b += write_padded(io, getfield(h, i), w)
         end
     end
     ns = 32 * (length(file.signals) + has_anno)
@@ -101,7 +108,7 @@ function write_data(io::IO, file::File)
             b += Base.write(io, view(signal.samples, s+1:stop))
         end
         if file.annotations !== nothing
-            b += _write(io, file.annotations[i])
+            b += write_annotations(io, file.annotations, i)
         end
     end
     return b

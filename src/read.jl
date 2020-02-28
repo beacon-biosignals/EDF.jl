@@ -142,10 +142,12 @@ function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, ::Nothi
 end
 
 function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, anno_idx::Integer)
-    annos = RecordAnnotation[]
+    annos = AnnotationList()
+    annos.header = deepcopy(signals[anno_idx].header)
+    annos.records = Vector{DataRecord}()
     for i = 1:header.n_records
-        anno = RecordAnnotation()
-        anno.annotations = AnnotationsList[]
+        record_annotation = RecordAnnotation()
+        annotations = Vector{TimestampAnnotation}()
         for (j, signal) in enumerate(signals)
             n_bytes = 2 * signal.header.n_samples
             data = Base.read(io, n_bytes)
@@ -154,18 +156,20 @@ function read_data!(io::IO, signals::Vector{Signal}, header::FileHeader, anno_id
                 while !eof(record) && Base.peek(record) != 0x0
                     toplevel, offset, duration, events = read_tal(record)
                     if toplevel
-                        anno.offset = offset
-                        anno.event = events
-                        anno.n_bytes = n_bytes
+                        record_annotation.offset = offset
+                        record_annotation.events = events
                     else
-                        push!(anno.annotations, AnnotationsList(offset, duration, events))
+                        push!(annotations, TimestampAnnotation(offset, duration, events))
                     end
                 end
             else
                 append!(signal.samples, reinterpret(Int16, data))
             end
         end
-        push!(annos, anno)
+        if isempty(annotations)
+            annotations = nothing
+        end
+        push!(annos.records, record_annotation => annotations)
     end
     deleteat!(signals, anno_idx)
     @assert eof(io)
@@ -174,6 +178,9 @@ end
 
 function read_tal(io::IO)
     c = Base.read(io, UInt8)
+    if c !== 0x2b && c !== 0x2d
+        println(c)
+    end
     # Read the offset from the start time declared in the header
     @assert c === 0x2b || c === 0x2d  # + or -
     sign = c === 0x2b ? 1 : -1

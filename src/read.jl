@@ -18,8 +18,8 @@ end
 function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
     s = split(raw, ' ', keepempty=false)
     length(s) == 5 || return
-    popfirst!(s) == "Startdate" || return
-    start_raw, admin_raw, tech_raw, equip_raw = s
+    first(s) == "Startdate" || return
+    _, start_raw, admin_raw, tech_raw, equip_raw = s
     startdate = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), start_raw)
     startdate === nothing && return
     admincode = edf_unknown(admin_raw)

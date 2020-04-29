@@ -48,13 +48,11 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 
 function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
-    fields = []
-    for (size, method) in zip(FIELD_SIZES, PARSE_METHODS)
-        push!(fields, read_field(io, method, signal_count, size))
-    end
+    fields = [method(String(Base.read(io, size)))
+              for signal in 1:signal_count, (size, method) in zip(FIELD_SIZES, PARSE_METHODS)]
+    T = Union{SignalHeader,AnnotationListHeader}
+    signal_headers = T[SignalHeader(row...) for row in eachrow(fields)]
     skip(io, 32 * signal_count) # Reserved
-    signal_headers = SignalHeader.(fields...)
-    signal_headers = convert(Vector{Union{SignalHeader, AnnotationListHeader}}, signal_headers)
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")
     return file_header, signal_headers
@@ -98,14 +96,6 @@ end
 
 const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
 const PARSE_METHODS = Function[strip, strip, strip, parse_float, parse_float, parse_float, parse_float, strip, x -> parse(Int16, x)]
-
-function read_field(io::IO, f::Function, signal_count::Integer, size::Integer)
-    fields = []
-    for i in 1:signal_count
-        push!(fields, f(String(Base.read(io, size))))
-    end
-    return fields
-end
 
 function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
     annotation_header = findfirst(header -> header.label == "EDF Annotations", signal_headers)

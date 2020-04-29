@@ -3,24 +3,24 @@
 #####
 
 function Base.tryparse(::Type{PatientID}, raw::AbstractString)
-    s = split(raw, ' ', keepempty=false)
+    s = split(raw, ' '; keepempty=false)
     length(s) == 4 || return
     code_raw, sex_raw, dob_raw, name_raw = s
     length(sex_raw) == 1 || return
     code = edf_unknown(code_raw)
     sex = edf_unknown(first, sex_raw)
-    dob = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
+    dob = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
     dob === nothing && return
     name = edf_unknown(name_raw)
     return PatientID(code, sex, dob, name)
 end
 
 function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
-    s = split(raw, ' ', keepempty=false)
+    s = split(raw, ' '; keepempty=false)
     length(s) == 5 || return
     first(s) == "Startdate" || return
     _, start_raw, admin_raw, tech_raw, equip_raw = s
-    startdate = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), start_raw)
+    startdate = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), start_raw)
     startdate === nothing && return
     admincode = edf_unknown(admin_raw)
     technician = edf_unknown(tech_raw)
@@ -153,7 +153,7 @@ end
 function read_timestamp_annotation(io::IO)
     sign = read_sign(io)
     raw = readuntil(io, 0x14)
-    timestamp = split(String(raw), '\x15', keepempty=false)
+    timestamp = split(String(raw), '\x15'; keepempty=false)
     offset = sign * parse(Float64, popfirst!(timestamp))
     if isempty(timestamp)
         duration = nothing
@@ -173,7 +173,7 @@ end
 
 function read_events(io::IO)
     raw = readuntil(io, 0x0)
-    events = split(String(raw), '\x14', keepempty=false)
+    events = split(String(raw), '\x14'; keepempty=false)
     events = convert(Vector{String}, events)
     return isempty(events) ? nothing : events
 end

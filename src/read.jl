@@ -46,7 +46,7 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 #####
 
 
-function read_header(io::IO)
+function read_file_and_signal_headers(io::IO)
     (file_header, header_byte_count, signal_count) = read_file_header(io)
     fields = []
     for (size, method) in zip(FIELD_SIZES, PARSE_METHODS)
@@ -195,7 +195,7 @@ Read the given file and return an `EDF.File` object containing the parsed data.
 """
 function read(file::AbstractString)
     open(file, "r") do io
-        file_header, signal_headers = read_header(io)
+        file_header, signal_headers = read_file_and_signal_headers(io)
         signals, annotations = read_signals(io, file_header, signal_headers)
         return File(file_header, signals, annotations)
     end

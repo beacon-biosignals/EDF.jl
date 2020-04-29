@@ -45,6 +45,7 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 ##### Reading EDF Files
 #####
 
+const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
 
 function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
@@ -65,9 +66,6 @@ function read_file_and_signal_headers(io::IO)
                                                "Expected $header_byte_count but was $(position(io))")
     return file_header, signal_headers
 end
-
-const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
-const PARSE_METHODS = Function[strip, strip, strip, parse_float, parse_float, parse_float, parse_float, strip, x -> parse(Int16, x)]
 
 function read_file_header(io::IO)
     version = strip(String(Base.read(io, 8)))

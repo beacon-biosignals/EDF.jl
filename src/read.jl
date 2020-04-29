@@ -3,30 +3,32 @@
 #####
 
 function Base.tryparse(::Type{PatientID}, raw::AbstractString)
-    s = split(raw, ' ', keepempty=false)
+    s = split(raw, ' '; keepempty=false)
     length(s) == 4 || return
     code_raw, sex_raw, dob_raw, name_raw = s
     length(sex_raw) == 1 || return
     code = edf_unknown(code_raw)
     sex = edf_unknown(first, sex_raw)
-    dob = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
+    dob = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
     dob === nothing && return
     name = edf_unknown(name_raw)
     return PatientID(code, sex, dob, name)
 end
 
 function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
-    s = split(raw, ' ', keepempty=false)
+    s = split(raw, ' '; keepempty=false)
     length(s) == 5 || return
     first(s) == "Startdate" || return
     _, start_raw, admin_raw, tech_raw, equip_raw = s
-    startdate = edf_unknown(raw->tryparse(Date, raw, dateformat"d-u-y"), start_raw)
+    startdate = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), start_raw)
     startdate === nothing && return
     admincode = edf_unknown(admin_raw)
     technician = edf_unknown(tech_raw)
     equipment = edf_unknown(equip_raw)
     return RecordingID(startdate, admincode, technician, equipment)
 end
+
+parse_float(raw::AbstractString) = something(tryparse(Float32, raw), NaN32)
 
 """
     edf_unknown([f,] field::String)
@@ -39,33 +41,33 @@ to `identity`.
 edf_unknown(f, field::AbstractString) = field == "X" ? missing : f(field)
 edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 
-"""
-    set!(io::IO, [f=strip,] sigs::Vector{Signal}, name::Symbol, sz::Integer)
-
-For each signal in `sigs`, set the field given by `name` to the result of `f` applied
-to a chunk of size `sz` read from `io` as a `String`.
-"""
-function set!(io::IO, f, sigs::Vector{Signal}, name::Symbol, sz::Integer)
-    n = length(sigs)
-    T = fieldtype(Signal, name)
-    @inbounds for i = 1:n
-        x = f(String(Base.read(io, sz)))
-        setfield!(sigs[i], name, convert(T, x))
-    end
-    return sigs
-end
-
-function set!(io::IO, sigs::Vector{Signal}, name::Symbol, sz::Integer)
-    return set!(io, strip, sigs, name, sz)
-end
-
-parse_float(raw::AbstractString) = something(tryparse(Float32, raw), NaN32)
-
 #####
-##### Reading
+##### Reading EDF Files
 #####
 
-function read_header(io::IO)
+const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
+
+function read_file_and_signal_headers(io::IO)
+    file_header, header_byte_count, signal_count = read_file_header(io)
+    fields = String[String(Base.read(io, size))
+                    for signal in 1:signal_count, size in FIELD_SIZES]
+    T = Union{SignalHeader,AnnotationListHeader}
+    signal_headers = T[SignalHeader(strip(fields[i,1]),
+                                    strip(fields[i,2]),
+                                    strip(fields[i,3]),
+                                    parse_float(fields[i,4]),
+                                    parse_float(fields[i,5]),
+                                    parse_float(fields[i,6]),
+                                    parse_float(fields[i,7]),
+                                    strip(fields[i,8]),
+                                    parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
+    skip(io, 32 * signal_count) # Reserved
+    position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
+                                               "Expected $header_byte_count but was $(position(io))")
+    return file_header, signal_headers
+end
+
+function read_file_header(io::IO)
     version = strip(String(Base.read(io, 8)))
 
     patient_id_raw = strip(String(Base.read(io, 80)))
@@ -88,117 +90,97 @@ function read_header(io::IO)
     # we ignore the above entirely and use `recording_id.startdate`. We could add a
     # check here on `year(today())`, but that will be dead code for the next 60+ years.
 
-    nb_header = parse(Int, String(Base.read(io, 8)))
+    header_byte_count = parse(Int, String(Base.read(io, 8)))
     reserved = String(Base.read(io, 44))
     continuous = !startswith(reserved, "EDF+D")
     n_records = parse(Int, String(Base.read(io, 8)))
     duration = parse(Float64, String(Base.read(io, 8)))
-    n_signals = parse(Int, String(Base.read(io, 4)))
+    signal_count = parse(Int, String(Base.read(io, 4)))
 
-    signals = [Signal() for _ = 1:n_signals]
-
-    # TODO: EDF+ allows floating point data which does not fit within the Int16 limits.
-    # See https://edfplus.info/specs/edffloat.html for details. MNE seems to implement
-    # this(?)
-
-    set!(io, signals, :label, 16)
-    set!(io, signals, :transducer, 80)
-    set!(io, signals, :physical_units, 8)
-    set!(io, parse_float, signals, :physical_min, 8)
-    set!(io, parse_float, signals, :physical_max, 8)
-    set!(io, parse_float, signals, :digital_min, 8)
-    set!(io, parse_float, signals, :digital_max, 8)
-    set!(io, signals, :prefilter, 80)
-    set!(io, x->parse(Int16, x), signals, :n_samples, 8)
-
-    skip(io, 32 * n_signals)  # Reserved
-
-    for signal in signals
-        signal.samples = Vector{Int16}()  # Otherwise it's #undef
-    end
-
-    anno_idx = findfirst(signal->signal.label == "EDF Annotations", signals)
-    if anno_idx !== nothing
-        n_signals -= 1
-    end
-
-    @assert position(io) == nb_header
-
-    h = Header(version, patient_id, recording_id, continuous, start, n_records,
-               duration, n_signals)
-    return (h, signals, anno_idx)
+    header = FileHeader(version, patient_id, recording_id, start,
+                        continuous, n_records, duration)
+    return header, header_byte_count, signal_count
 end
 
-function read_data!(io::IO, signals::Vector{Signal}, header::Header, ::Nothing)
-    for i = 1:header.n_records, signal in signals
-        append!(signal.samples, reinterpret(Int16, Base.read(io, 2 * signal.n_samples)))
+function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
+    annotation_header = findfirst(header -> header.label == "EDF Annotations", signal_headers)
+    if annotation_header !== nothing
+        signal_headers[annotation_header] = AnnotationListHeader(signal_headers[annotation_header])
     end
-    @assert eof(io)
-    return (signals, nothing)
-end
-
-function read_data!(io::IO, signals::Vector{Signal}, header::Header, anno_idx::Integer)
-    annos = RecordAnnotation[]
-    for i = 1:header.n_records
-        anno = RecordAnnotation()
-        anno.annotations = AnnotationsList[]
-        for (j, signal) in enumerate(signals)
-            n_bytes = 2 * signal.n_samples
-            data = Base.read(io, n_bytes)
-            if j == anno_idx
-                record = IOBuffer(data)
-                while !eof(record) && Base.peek(record) != 0x0
-                    toplevel, offset, duration, events = read_tal(record)
-                    if toplevel
-                        anno.offset = offset
-                        anno.event = events
-                        anno.n_bytes = n_bytes
-                    else
-                        push!(anno.annotations, AnnotationsList(offset, duration, events))
-                    end
-                end
-            else
-                append!(signal.samples, reinterpret(Int16, data))
-            end
-        end
-        push!(annos, anno)
+    signal_samples = [samples(signal) for signal in signal_headers]
+    for record in 1:file_header.n_records, (index, header) in enumerate(signal_headers)
+        data = Base.read(io, 2 * header.n_samples)
+        read_data!(signal_samples[index], data, header)
     end
-    deleteat!(signals, anno_idx)
-    @assert eof(io)
-    return (signals, annos)
-end
-
-function read_tal(io::IO)
-    c = Base.read(io, UInt8)
-    # Read the offset from the start time declared in the header
-    @assert c === 0x2b || c === 0x2d  # + or -
-    sign = c === 0x2b ? 1 : -1
-    buffer = UInt8[]
-    while true
-        c = Base.read(io, UInt8)
-        if c === 0x14 || c === 0x15
-            break
-        end
-        push!(buffer, c)
-    end
-    offset = sign * parse(Float64, String(buffer))
-    # Read the duration, if present
-    if c === 0x15
-        duration = parse(Float64, String(readuntil(io, 0x14)))
+    if annotation_header !== nothing
+        header = splice!(signal_headers, annotation_header)
+        records = splice!(signal_samples, annotation_header)
+        annotations = AnnotationList(header, records)
     else
+        annotations = nothing
+    end
+    signals = Signal.(signal_headers, signal_samples)
+    @assert eof(io)
+    return signals, annotations
+end
+
+read_data!(samples::Vector{Int16}, data::Vector{UInt8}, ::SignalHeader) = append!(samples, reinterpret(Int16, data))
+
+function read_data!(samples::Vector{DataRecord}, data::Vector{UInt8}, ::AnnotationListHeader)
+    record = IOBuffer(data)
+    annotations = Vector{TimestampAnnotation}()
+    record_annotation = read_record_annotation(record)
+    while !eof(record) && Base.peek(record) != 0x0
+        push!(annotations, read_timestamp_annotation(record))
+    end
+    if isempty(annotations)
+        annotations = nothing
+    end
+    push!(samples, record_annotation => annotations)
+    return nothing
+end
+
+samples(::SignalHeader) = Vector{Int16}()
+samples(::AnnotationListHeader) = Vector{DataRecord}()
+
+function read_record_annotation(io::IO)
+    sign = read_sign(io)
+    offset = sign * parse(Float64, String(readuntil(io, 0x14)))
+    if Base.peek(io) !== 0x0
+        events = read_events(io)
+    else
+        events = nothing
+        Base.skip(io, 1)
+    end
+    return RecordAnnotation(offset, events)
+end
+
+function read_timestamp_annotation(io::IO)
+    sign = read_sign(io)
+    raw = readuntil(io, 0x14)
+    timestamp = split(String(raw), '\x15'; keepempty=false)
+    offset = sign * parse(Float64, popfirst!(timestamp))
+    if isempty(timestamp)
         duration = nothing
-    end
-    c = Base.read(io, UInt8)
-    record = c === 0x14  # Whether the annotation applies to the entire record
-    # Read the annotation text, if present
-    if c !== 0x0
-        raw = readuntil(io, 0x0)
-        pushfirst!(raw, c)
-        events = convert(Vector{String}, split(String(raw), '\x14', keepempty=false))
     else
-        events = String[]
+        duration = parse(Float64, popfirst!(timestamp))
     end
-    return (record, offset, duration, events)
+    events = read_events(io)
+    events !== nothing || error("No events found for timestamp annotation at offset $offset")
+    return TimestampAnnotation(offset, duration, events)
+end
+
+function read_sign(io::IO)
+    sign = Base.read(io, UInt8)
+    sign === 0x2b || sign === 0x2d || error("Starting byte of annotation must be '+' or '-'.")
+    return sign === 0x2b ? 1 : -1
+end
+
+function read_events(io::IO)
+    raw = readuntil(io, 0x0)
+    events = split(String(raw), '\x14'; keepempty=false)
+    events = convert(Vector{String}, events)
+    return isempty(events) ? nothing : events
 end
 
 """
@@ -208,8 +190,8 @@ Read the given file and return an `EDF.File` object containing the parsed data.
 """
 function read(file::AbstractString)
     open(file, "r") do io
-        header, data, anno_idx = read_header(io)
-        data, annos = read_data!(io, data, header, anno_idx)
-        File(header, data, annos)
+        file_header, signal_headers = read_file_and_signal_headers(io)
+        signals, annotations = read_signals(io, file_header, signal_headers)
+        return File(file_header, signals, annotations)
     end
 end

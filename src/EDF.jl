@@ -51,81 +51,90 @@ struct RecordingID
 end
 
 """
-    EDF.AnnotationsList
+    AbstractAnnotation
 
-Type representing a time-stamp annotations list (TAL).
+A type representing an EDF+ Annotation.
+"""
+abstract type AbstractAnnotation end
+
+"""
+    TimestampAnnotation <: AbstractAnnotation
+
+A type representing a time-stamp annotations list (TAL).
 
 # Fields
 
 * `offset` (`Float64`): Offset from the recording start time (specified in the header)
   at which the event in this TAL starts
 * `duration` (`Float64` or `Nothing`): Duration of the event, if specified
-* `event` (`Vector{String}`): List of events for this TAL
+* `events` (`Vector{String}`): List of events for this TAL
 """
-struct AnnotationsList
+struct TimestampAnnotation <: AbstractAnnotation
     offset::Float64
     duration::Union{Float64,Nothing}
-    event::Vector{String}
+    events::Vector{String}
 end
 
 """
-    EDF.RecordAnnotation
+    RecordAnnotation <: AbstractAnnotation
 
-Type containing all annotations applied to a particular data record.
+A type representing a record-level annotation in an `EDF.File`.
 
 # Fields
 
 * `offset` (`Float64`): Offset from the recording start time (specified in the header)
   at which the current data record starts
-* `event` (`Vector{String}` or `Nothing`): The event that marks the start of the data
+* `events` (`Vector{String}` or `Nothing`): The events that mark the start of the data
   record, if applicable
-* `annotations` (`Vector{EDF.AnnotationsList}`): The time-stamped annotations lists (TALs)
-  in the current data record
-* `n_bytes` (`Int`): The number of raw bytes per data record in the "EDF Annotation" signal
 """
-mutable struct RecordAnnotation
+struct RecordAnnotation <: AbstractAnnotation
     offset::Float64
-    event::Union{Vector{String},Nothing}
-    annotations::Vector{AnnotationsList}
-    n_bytes::Int
-
-    RecordAnnotation() = new()
-    RecordAnnotation(offset, event, annotations, n_bytes) = new(offset, event, annotations, n_bytes)
+    events::Union{Vector{String},Nothing}
 end
 
 """
-    EDF.Header
+    TimestampAnnotationList
+
+An alias for a list of TimestampAnnotations, if present in a `DataRecord`.
+"""
+const TimestampAnnotationList = Union{Vector{TimestampAnnotation},Nothing}
+
+"""
+    DataRecord
+
+A representation of all annotation information in an EDF+ data record.
+"""
+const DataRecord = Pair{RecordAnnotation,TimestampAnnotationList}
+
+"""
+    EDF.FileHeader
 
 Type representing the header record for an EDF file.
 
-## Fields
+# Fields
 
 * `version` (`String`): Version of the data format
 * `patient` (`String` or `EDF.PatientID`): Local patient identification
 * `recording` (`String` or `EDF.RecordingID`): Local recording identification
-* `continuous` (`Bool`): If true, data records are contiguous. This field defaults to `true` for files that are EDF-compliant but not EDF+-compliant.
 * `start` (`DateTime`): Date and time the recording started
+* `continuous` (`Bool`): If true, data records are contiguous. This field defaults to `true` for files that are EDF-compliant but not EDF+-compliant.
 * `n_records` (`Int`): Number of data records
 * `duration` (`Float64`): Duration of a data record in seconds
-* `n_signals` (`Int`): Number of signals in a data record
 """
-struct Header
+struct FileHeader
     version::String
     patient::Union{String,PatientID}
     recording::Union{String,RecordingID}
-    continuous::Bool
     start::DateTime
+    continuous::Bool
     n_records::Int
     duration::Float64
-    n_signals::Int
 end
 
-# TODO: Make the vector of samples mmappable
-# Also TODO: Refactor to make signals immutable
 """
-    EDF.Signal
+    EDF.SignalHeader
 
-Type representing a single signal extracted from an EDF file.
+Type representing the header record for a single EDF signal.
 
 # Fields
 
@@ -138,13 +147,8 @@ Type representing a single signal extracted from an EDF file.
 * `digital_max` (`Float32`): The maximum value of the signal that could occur in a data record
 * `prefilter` (`String`): Description of any prefiltering done to the signal
 * `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
-* `samples` (`Vector{Int16}`): The encoded sample values of the signal
-
-!!! note
-    Samples are stored in a `Signal` object in the same encoding as they appear in raw
-    EDF files. See [`decode`](@ref) for decoding signals to their physical values.
 """
-mutable struct Signal
+struct SignalHeader
     label::String
     transducer::String
     physical_units::String
@@ -154,9 +158,62 @@ mutable struct Signal
     digital_max::Float32
     prefilter::String
     n_samples::Int16
-    samples::Vector{Int16}
+end
 
-    Signal() = new()
+"""
+    EDF.AnnotationListHeader
+
+Type representing the header record for an `AnnotationList`
+
+# Fields
+
+* `n_samples` (`Int16`): The number of samples in a single data record
+"""
+struct AnnotationListHeader
+    n_samples::Int16
+end
+
+AnnotationListHeader(header::SignalHeader) = AnnotationListHeader(header.n_samples)
+
+function SignalHeader(header::AnnotationListHeader)
+    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
+end
+
+
+# TODO: Make the vector of samples mmappable
+"""
+    EDF.Signal
+
+Type representing a single signal extracted from an EDF file.
+
+# Fields
+
+* `header` (`SignalHeader`): Signal-level metadata extracted from the signal header
+* `samples` (`Vector{Int16}`): The encoded sample values of the signal
+
+!!! note
+    Samples are stored in a `Signal` object in the same encoding as they appear in raw
+    EDF files. See [`decode`](@ref) for decoding signals to their physical values.
+"""
+struct Signal
+    header::SignalHeader
+    samples::Vector{Int16}
+end
+
+
+"""
+    EDF.AnnotationList
+
+Type representing a single signal extracted from an EDF file.
+
+# Fields
+
+* `header` (`AnnotationListHeader`): Signal-level metadata extracted from the signal header
+* `records` (`Vector{DataRecord}`): EDF+ file annotation information on a per-record basis
+"""
+struct AnnotationList
+    header::AnnotationListHeader
+    records::Vector{DataRecord}
 end
 
 """
@@ -168,16 +225,16 @@ and the fields of the types of those fields.
 
 # Fields
 
-* `header` (`EDF.Header`): File-level metadata extracted from the file header
+* `header` (`EDF.FileHeader`): File-level metadata extracted from the file header
 * `signals` (`Vector{EDF.Signal}`): All signals extracted from the data records
 * `annotations` (`Vector{EDF.RecordAnnotation}` or `Nothing`): A vector of length
   `header.n_records` where each element contains annotations for the corresponding
   data record, if annotations are present in the file
 """
 struct File
-    header::Header
+    header::FileHeader
     signals::Vector{Signal}
-    annotations::Union{Vector{RecordAnnotation},Nothing}
+    annotations::Union{AnnotationList,Nothing}
 end
 
 function Base.show(io::IO, edf::File)
@@ -194,13 +251,13 @@ end
 Decode the sample values in the given signal and return a `Vector` of the physical values.
 """
 function decode(signal::Signal)
-    digital_range = signal.digital_max - signal.digital_min
-    physical_range = signal.physical_max - signal.physical_min
-    return @. ((signal.samples - signal.digital_min) / digital_range) * physical_range + signal.physical_min
+    digital_range = signal.header.digital_max - signal.header.digital_min
+    physical_range = signal.header.physical_max - signal.header.physical_min
+    return @. ((signal.samples - signal.header.digital_min) / digital_range) * physical_range + signal.header.physical_min
 end
 
 #####
-##### The rest
+##### I/O
 #####
 
 include("read.jl")

@@ -97,14 +97,14 @@ end
 
 An alias for a list of TimestampAnnotations, if present in a `DataRecord`.
 """
-const TimestampAnnotationList = Union{Vector{TimestampAnnotation}, Nothing}
+const TimestampAnnotationList = Union{Vector{TimestampAnnotation},Nothing}
 
 """
     DataRecord
 
 A representation of all annotation information in an EDF+ data record.
 """
-const DataRecord = Pair{RecordAnnotation, TimestampAnnotationList}
+const DataRecord = Pair{RecordAnnotation,TimestampAnnotationList}
 
 """
     EDF.FileHeader

@@ -175,7 +175,9 @@ end
 
 AnnotationListHeader(header::SignalHeader) = AnnotationListHeader(header.n_samples)
 
-SignalHeader(header::AnnotationListHeader) = SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
+function SignalHeader(header::AnnotationListHeader)
+    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
+end
 
 
 # TODO: Make the vector of samples mmappable

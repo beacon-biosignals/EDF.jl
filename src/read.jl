@@ -48,16 +48,26 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 
 function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
-    fields = [method(String(Base.read(io, size)))
-              for signal in 1:signal_count, (size, method) in zip(FIELD_SIZES, PARSE_METHODS)]
+    fields = String[String(Base.read(io, size))
+                    for signal in 1:signal_count, size in FIELD_SIZES]
     T = Union{SignalHeader,AnnotationListHeader}
-    signal_headers = T[SignalHeader(fields[i, :]...) for i in 1:size(fields, 1)]
+    signal_headers = T[SignalHeader(strip(fields[i,1]),
+                                    strip(fields[i,2]),
+                                    strip(fields[i,3]),
+                                    parse_float(fields[i,4]),
+                                    parse_float(fields[i,5]),
+                                    parse_float(fields[i,6]),
+                                    parse_float(fields[i,7]),
+                                    strip(fields[i,8]),
+                                    parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
     skip(io, 32 * signal_count) # Reserved
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")
     return file_header, signal_headers
 end
 
+const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
+const PARSE_METHODS = Function[strip, strip, strip, parse_float, parse_float, parse_float, parse_float, strip, x -> parse(Int16, x)]
 
 function read_file_header(io::IO)
     version = strip(String(Base.read(io, 8)))
@@ -93,9 +103,6 @@ function read_file_header(io::IO)
                         continuous, n_records, duration)
     return header, header_byte_count, signal_count
 end
-
-const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
-const PARSE_METHODS = Function[strip, strip, strip, parse_float, parse_float, parse_float, parse_float, strip, x -> parse(Int16, x)]
 
 function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
     annotation_header = findfirst(header -> header.label == "EDF Annotations", signal_headers)

@@ -161,7 +161,7 @@ struct SignalHeader
 end
 
 """
-    EDF.AnnotationHeader
+    EDF.AnnotationListHeader
 
 Type representing the header record for an `AnnotationList`
 
@@ -169,13 +169,13 @@ Type representing the header record for an `AnnotationList`
 
 * `n_samples` (`Int16`): The number of samples in a single data record
 """
-struct AnnotationHeader
+struct AnnotationListHeader
     n_samples::Int16
 end
 
-AnnotationHeader(header::SignalHeader) = AnnotationHeader(header.n_samples)
+AnnotationListHeader(header::SignalHeader) = AnnotationListHeader(header.n_samples)
 
-SignalHeader(header::AnnotationHeader) = SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
+SignalHeader(header::AnnotationListHeader) = SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
 
 
 # TODO: Make the vector of samples mmappable
@@ -206,11 +206,11 @@ Type representing a single signal extracted from an EDF file.
 
 # Fields
 
-* `header` (`SignalHeader`): Signal-level metadata extracted from the signal header
+* `header` (`AnnotationListHeader`): Signal-level metadata extracted from the signal header
 * `records` (`Vector{DataRecord}`): EDF+ file annotation information on a per-record basis
 """
 struct AnnotationList
-    header::AnnotationHeader
+    header::AnnotationListHeader
     records::Vector{DataRecord}
 end
 

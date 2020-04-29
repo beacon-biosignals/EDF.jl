@@ -54,7 +54,7 @@ function read_header(io::IO)
     end
     skip(io, 32 * signal_count) # Reserved
     signal_headers = SignalHeader.(fields...)
-    signal_headers = convert(Vector{Union{SignalHeader, AnnotationHeader}}, signal_headers)
+    signal_headers = convert(Vector{Union{SignalHeader, AnnotationListHeader}}, signal_headers)
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")
     return (file_header, signal_headers)
@@ -110,7 +110,7 @@ end
 function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
     annotation_header = findfirst(header -> header.label == "EDF Annotations", signal_headers)
     if annotation_header !== nothing
-        signal_headers[annotation_header] = EDF.AnnotationHeader(signal_headers[annotation_header])
+        signal_headers[annotation_header] = EDF.AnnotationListHeader(signal_headers[annotation_header])
     end
     signal_samples = [samples(signal) for signal in signal_headers]
     for record in 1:file_header.n_records, (index, header) in enumerate(signal_headers)
@@ -131,7 +131,7 @@ end
 
 read_data!(samples::Vector{Int16}, data::Vector{UInt8}, ::SignalHeader) = append!(samples, reinterpret(Int16, data))
 
-function read_data!(samples::Vector{DataRecord}, data::Vector{UInt8}, ::AnnotationHeader)
+function read_data!(samples::Vector{DataRecord}, data::Vector{UInt8}, ::AnnotationListHeader)
     record = IOBuffer(data)
     annotations = Vector{TimestampAnnotation}()
     record_annotation = read_record_annotation(record)
@@ -146,7 +146,7 @@ function read_data!(samples::Vector{DataRecord}, data::Vector{UInt8}, ::Annotati
 end
 
 samples(::SignalHeader) = Vector{Int16}()
-samples(::AnnotationHeader) = Vector{DataRecord}()
+samples(::AnnotationListHeader) = Vector{DataRecord}()
 
 function read_record_annotation(io::IO)
     sign = read_sign(io)

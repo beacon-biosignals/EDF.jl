@@ -100,7 +100,7 @@ const PARSE_METHODS = Function[strip, strip, strip, parse_float, parse_float, pa
 function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
     annotation_header = findfirst(header -> header.label == "EDF Annotations", signal_headers)
     if annotation_header !== nothing
-        signal_headers[annotation_header] = EDF.AnnotationListHeader(signal_headers[annotation_header])
+        signal_headers[annotation_header] = AnnotationListHeader(signal_headers[annotation_header])
     end
     signal_samples = [samples(signal) for signal in signal_headers]
     for record in 1:file_header.n_records, (index, header) in enumerate(signal_headers)

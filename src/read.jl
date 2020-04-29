@@ -47,7 +47,7 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 
 
 function read_file_and_signal_headers(io::IO)
-    (file_header, header_byte_count, signal_count) = read_file_header(io)
+    file_header, header_byte_count, signal_count = read_file_header(io)
     fields = []
     for (size, method) in zip(FIELD_SIZES, PARSE_METHODS)
         push!(fields, read_field(io, method, signal_count, size))
@@ -57,7 +57,7 @@ function read_file_and_signal_headers(io::IO)
     signal_headers = convert(Vector{Union{SignalHeader, AnnotationListHeader}}, signal_headers)
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")
-    return (file_header, signal_headers)
+    return file_header, signal_headers
 end
 
 
@@ -93,7 +93,7 @@ function read_file_header(io::IO)
 
     header = FileHeader(version, patient_id, recording_id, start,
                         continuous, n_records, duration)
-    return (header, header_byte_count, signal_count)
+    return header, header_byte_count, signal_count
 end
 
 const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
@@ -126,7 +126,7 @@ function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
     end
     signals = Signal.(signal_headers, signal_samples)
     @assert eof(io)
-    return (signals, annotations)
+    return signals, annotations
 end
 
 read_data!(samples::Vector{Int16}, data::Vector{UInt8}, ::SignalHeader) = append!(samples, reinterpret(Int16, data))

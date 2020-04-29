@@ -51,7 +51,7 @@ function read_file_and_signal_headers(io::IO)
     fields = [method(String(Base.read(io, size)))
               for signal in 1:signal_count, (size, method) in zip(FIELD_SIZES, PARSE_METHODS)]
     T = Union{SignalHeader,AnnotationListHeader}
-    signal_headers = T[SignalHeader(row...) for row in eachrow(fields)]
+    signal_headers = T[SignalHeader(fields[i, :]...) for i in 1:size(fields, 1)]
     skip(io, 32 * signal_count) # Reserved
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")

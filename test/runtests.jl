@@ -13,6 +13,7 @@ function deep_equal(a::T, b::T) where T
         return isequal(a, b)  # Use `isequal` instead of `==` to handle `missing`
     else
         for i = 1:nfields
+            typeof(getfield(a, i)) <: IO && continue # Two different files will have different IO sources
             isdefined(a, i) || return !isdefined(b, i)  # Call two undefs equal
             deep_equal(getfield(a, i), getfield(b, i)) || return false
         end
@@ -46,10 +47,10 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test edf.header.start == DateTime(2014, 4, 29, 22, 19, 44)
     @test edf.header.n_records == 6
     @test edf.header.duration == 1.0
-    @test edf.signals isa Vector{Signal}
+    @test edf.signals isa Vector{Pair{Signal,Vector{Int16}}}
     @test length(edf.signals) == 139
-    for s in edf.signals
-        @test length(s.samples) == s.header.n_samples * edf.header.n_records
+    for (signal, samples) in edf.signals
+        @test length(samples) == signal.n_samples * edf.header.n_records
     end
     expected = [
         (RecordAnnotation(0.0, nothing) => [TimestampAnnotation(0.0, nothing, ["start"])]),
@@ -69,7 +70,9 @@ const DATADIR = joinpath(@__DIR__, "data")
     seekstart(io)
     file_header, signal_headers = EDF.read_file_and_signal_headers(io)
     @test deep_equal(edf.header, file_header)
-    signals, annotations = EDF.read_signals(io, file_header, signal_headers)
+    annotations = EDF.extract_annotation_header!(signal_headers)
+    signals = [header => Vector{Int16}() for header in signal_headers]
+    EDF.read_signals!(io, file_header, signals, annotations)
     @test eof(io)
     @test deep_equal(edf.signals, signals)
     @test deep_equal(edf.annotations, annotations)
@@ -79,6 +82,21 @@ const DATADIR = joinpath(@__DIR__, "data")
         EDF.write(file, edf)
         edf2 = EDF.read(file)
         @test deep_equal(edf, edf2)
+        edf3 = EDF.open(file)
+        @test !eof(edf3.io)
+        @test isopen(edf3.io)
+        @test edf.header == edf3.header
+        for (signal_1, signal_2) in zip(edf.signals, edf3.signals)
+            @test first(signal_1) == first(signal_2)
+        end
+        for (signal, samples) in edf3.signals
+            @test isempty(samples)
+        end
+        @test edf.annotations.header == edf.annotations.header
+        EDF.read!(edf3)
+        @test !isopen(edf.io)
+        @test eof(edf3.io)
+        @test deep_equal(edf3, edf)
     end
 
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
@@ -90,13 +108,13 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test uneven.header.start == DateTime(2000, 7, 13, 12, 5, 48)
     @test uneven.header.n_records == 11
     @test uneven.header.duration == 10.0
-    @test uneven.signals[1].header.n_samples != uneven.signals[2].header.n_samples
+    @test uneven.signals[1].first.n_samples != uneven.signals[2].first.n_samples
     @test uneven.annotations === nothing
     @test length(uneven.signals) == 2
 
     nonint = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
     s = first(nonint.signals)
-    h = s.header
+    h = first(s)
     @test h.physical_min ≈ -29483.1f0
     @test h.physical_max ≈ 29483.12f0
     @test h.digital_min ≈ -32767.0f0

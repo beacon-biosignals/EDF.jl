@@ -51,14 +51,14 @@ struct RecordingID
 end
 
 """
-    AbstractAnnotation
+    EDF.AbstractAnnotation
 
 A type representing an EDF+ Annotation.
 """
 abstract type AbstractAnnotation end
 
 """
-    TimestampAnnotation <: AbstractAnnotation
+    EDF.TimestampAnnotation <: EDF.AbstractAnnotation
 
 A type representing a time-stamp annotations list (TAL).
 
@@ -76,7 +76,7 @@ struct TimestampAnnotation <: AbstractAnnotation
 end
 
 """
-    RecordAnnotation <: AbstractAnnotation
+    EDF.RecordAnnotation <: EDF.AbstractAnnotation
 
 A type representing a record-level annotation in an `EDF.File`.
 
@@ -93,14 +93,14 @@ struct RecordAnnotation <: AbstractAnnotation
 end
 
 """
-    TimestampAnnotationList
+    EDF.TimestampAnnotationList
 
-An alias for a list of TimestampAnnotations, if present in a `DataRecord`.
+An alias for a list of `TimestampAnnotation`s, if present, in a `DataRecord`.
 """
 const TimestampAnnotationList = Union{Vector{TimestampAnnotation},Nothing}
 
 """
-    DataRecord
+    EDF.DataRecord
 
 A representation of all annotation information in an EDF+ data record.
 """
@@ -131,8 +131,6 @@ struct FileHeader
     duration::Float64
 end
 
-abstract type AbstractSignalHeader end
-
 """
     EDF.Signal
 
@@ -150,7 +148,7 @@ Type representing the header record for a single EDF signal.
 * `prefilter` (`String`): Description of any prefiltering done to the signal
 * `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
 """
-struct Signal <: AbstractSignalHeader
+struct Signal
     label::String
     transducer::String
     physical_units::String
@@ -173,7 +171,7 @@ Type representing the header record for an `AnnotationList`
 * `offset_in_file` (`Int`): The annotation header's position,
    relative to other signals in its origin file
 """
-struct AnnotationListHeader <: AbstractSignalHeader
+struct AnnotationListHeader
     n_samples::Int16
     offset_in_file::Int
 end
@@ -183,26 +181,6 @@ AnnotationListHeader(header::Signal, offset::Int) = AnnotationListHeader(header.
 function Signal(header::AnnotationListHeader)
     return Signal("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
 end
-
-"""
-    EDF.Samples
-
-Type representing a signal and its associated sample data, extracted from an EDF file.
-
-# Fields
-
-* `signal` (`Signal`): The `Signal` information used to encode the sample data
-* `data` (`Vector{Int16}`): The encoded sample values of the signal
-
-!!! note
-    Samples are stored in a `Signal` object in the same encoding as they appear in raw
-    EDF files. See [`decode`](@ref) for decoding signals to their physical values.
-"""
-struct Samples
-    signal::Signal
-    data::Vector{Int16}
-end
-
 
 """
     EDF.AnnotationList

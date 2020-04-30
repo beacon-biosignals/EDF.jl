@@ -17,7 +17,7 @@ end
 
 function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
     startswith(raw, "Startdate") || return nothing
-    metadata = split(chop(raw; head=9), ' '; keepempty=false)
+    metadata = split(chop(raw; head=9, tail=0), ' '; keepempty=false)
     length(metadata) == 4 || return nothing
     start_raw, admin_raw, tech_raw, equip_raw = metadata
     startdate = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), start_raw)
@@ -45,17 +45,14 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 ##### Reading EDF Files
 #####
 
-const FIELD_SIZES = [16, 80, 8, 8, 8, 8, 8, 80, 8]
-
 function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
-    fields = String[String(Base.read(io, size))
-                    for signal in 1:signal_count, size in FIELD_SIZES]
-    signal_headers = [SignalHeader(strip(fields[i,1]), strip(fields[i,2]),
-                                   strip(fields[i,3]), parse_float(fields[i,4]),
-                                   parse_float(fields[i,5]), parse_float(fields[i,6]),
-                                   parse_float(fields[i,7]), strip(fields[i,8]),
-                                   parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
+    fields = [String(Base.read(io, size)) for signal in 1:signal_count, size in SIGNAL_HEADER_BYTES]
+    signal_headers = [Signal(strip(fields[i,1]), strip(fields[i,2]),
+                             strip(fields[i,3]), parse_float(fields[i,4]),
+                             parse_float(fields[i,5]), parse_float(fields[i,6]),
+                             parse_float(fields[i,7]), strip(fields[i,8]),
+                             parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
     skip(io, 32 * signal_count) # Reserved
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")
@@ -76,6 +73,7 @@ function read_file_header(io::IO)
     append!(start_raw, Base.read(io, 8))  # Add the time
     # Parsing the date per the given format will validate EDF+ item 2
     start = DateTime(String(start_raw), dateformat"dd\.mm\.yy HH\.MM\.SS")
+
     if year(start) <= 84  # 1985 is used as a clipping date
         start += Year(2000)
     else
@@ -97,31 +95,54 @@ function read_file_header(io::IO)
     return header, header_byte_count, signal_count
 end
 
-function read_signals(io::IO, file_header::FileHeader, signal_headers::Vector)
-    annotation_header = findfirst(header -> header.label == "EDF Annotations", signal_headers)
-    if annotation_header !== nothing
-        signal_headers[annotation_header] = AnnotationListHeader(signal_headers[annotation_header])
-    end
-    signal_samples = [samples(signal) for signal in signal_headers]
-    for record in 1:file_header.n_records, (index, header) in enumerate(signal_headers)
-        data = Base.read(io, 2 * header.n_samples)
-        read_data!(signal_samples[index], data, header)
-    end
-    if annotation_header !== nothing
-        header = splice!(signal_headers, annotation_header)
-        records = splice!(signal_samples, annotation_header)
-        annotations = AnnotationList(header, records)
+function extract_annotation_header!(signal_headers::Vector{Signal})
+    annotation_index = findfirst(header -> header.label == "EDF Annotations", signal_headers)
+    if annotation_index !== nothing
+        annotation_header = AnnotationListHeader(signal_headers[annotation_index], annotation_index)
+        annotations = AnnotationList(annotation_header, Vector{DataRecord}())
+        deleteat!(signal_headers, annotation_index)
     else
         annotations = nothing
     end
-    signals = Signal.(signal_headers, signal_samples)
-    @assert eof(io)
-    return signals, annotations
+    return annotations
 end
 
-read_data!(samples::Vector{Int16}, data::Vector{UInt8}, ::SignalHeader) = append!(samples, reinterpret(Int16, data))
+read_signals!(file::File) = read_signals!(file.io, file.header, file.signals, file.annotations)
 
-function read_data!(samples::Vector{DataRecord}, data::Vector{UInt8}, ::AnnotationListHeader)
+function read_signals!(io::IO, file_header::FileHeader, signals, annotations::AnnotationList)
+    for record in 1:file_header.n_records
+        for (index, (signal::Signal, samples::Vector{Int16})) in enumerate(signals)
+            if index == annotations.header.offset_in_file
+                data = Base.read(io, 2 * annotations.header.n_samples)
+                read_annotations!(annotations.records, data, record)
+            end
+            data = Base.read(io, 2 * signal.n_samples)
+            read_samples!(samples, data)
+        end
+        if annotations.header.offset_in_file == lastindex(signals) + 1
+            data = Base.read(io, 2 * annotations.header.n_samples)
+            read_annotations!(annotations.records, data, record)
+        end
+    end
+    @assert eof(io)
+    close(io)
+    return nothing
+end
+
+function read_signals!(io::IO, file_header::FileHeader, signals, ::Nothing)
+    for record in 1:file_header.n_records,
+        (index, (signal::Signal, samples::Vector{Int16})) in enumerate(signals)
+        data = Base.read(io, 2 * signal.n_samples)
+        read_samples!(samples, data)
+    end
+    @assert eof(io)
+    close(io)
+    return nothing
+end
+
+read_samples!(samples::Vector{Int16}, data::Vector{UInt8}) = append!(samples, reinterpret(Int16, data))
+
+function read_annotations!(records::Vector{DataRecord}, data::Vector{UInt8}, index::Integer)
     record = IOBuffer(data)
     annotations = Vector{TimestampAnnotation}()
     record_annotation = read_record_annotation(record)
@@ -131,12 +152,9 @@ function read_data!(samples::Vector{DataRecord}, data::Vector{UInt8}, ::Annotati
     if isempty(annotations)
         annotations = nothing
     end
-    push!(samples, record_annotation => annotations)
+    push!(records, record_annotation => annotations)
     return nothing
 end
-
-samples(::SignalHeader) = Vector{Int16}()
-samples(::AnnotationListHeader) = Vector{DataRecord}()
 
 function read_record_annotation(io::IO)
     sign = read_sign(io)
@@ -154,7 +172,7 @@ function read_timestamp_annotation(io::IO)
     sign = read_sign(io)
     raw = readuntil(io, 0x14)
     timestamp = split(String(raw), '\x15'; keepempty=false)
-    offset = sign * parse(Float64, popfirst!(timestamp))
+    offset = flipsign(parse(Float64, popfirst!(timestamp)), sign)
     if isempty(timestamp)
         duration = nothing
     else
@@ -183,10 +201,17 @@ end
 
 Read the given file and return an `EDF.File` object containing the parsed data.
 """
-function read(file::AbstractString)
-    open(file, "r") do io
-        file_header, signal_headers = read_file_and_signal_headers(io)
-        signals, annotations = read_signals(io, file_header, signal_headers)
-        return File(file_header, signals, annotations)
-    end
+read(file::AbstractString) = read!(open(file))
+
+function read!(file::File)
+    (isopen(file.io) || !eof(file.io)) && read_signals!(file)
+    return file
+end
+
+function open(file::AbstractString)
+    io = Base.open(file, "r")
+    file_header, signal_headers = read_file_and_signal_headers(io)
+    annotations = extract_annotation_header!(signal_headers)
+    signals = [header => Vector{Int16}() for header in signal_headers]
+    return File{typeof(io)}(io, file_header, signals, annotations)
 end

@@ -9,7 +9,7 @@ function Base.tryparse(::Type{PatientID}, raw::AbstractString)
     length(sex_raw) == 1 || return nothing
     code = edf_unknown(code_raw)
     sex = edf_unknown(first, sex_raw)
-    dob = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
+    dob = edf_unknown(parse_date, dob_raw)
     dob === nothing && return nothing
     name = edf_unknown(name_raw)
     return PatientID(code, sex, dob, name)
@@ -20,7 +20,7 @@ function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
     metadata = split(chop(raw; head=9, tail=0), ' '; keepempty=false)
     length(metadata) == 4 || return nothing
     start_raw, admin_raw, tech_raw, equip_raw = metadata
-    startdate = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), start_raw)
+    startdate = edf_unknown(parse_date, start_raw)
     startdate === nothing && return nothing
     admincode = edf_unknown(admin_raw)
     technician = edf_unknown(tech_raw)
@@ -29,6 +29,8 @@ function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
 end
 
 parse_float(raw::AbstractString) = something(tryparse(Float32, raw), NaN32)
+
+parse_date(raw::AbstractString) = tryparse(Date, raw, dateformat"d-u-y")
 
 """
     edf_unknown([f,] field::String)
@@ -79,6 +81,7 @@ function read_file_header(io::IO)
     else
         start += Year(1900)
     end
+
     # FIXME: EDF "avoids" the Y2K problem by punting it to the year 2084, after which
     # we ignore the above entirely and use `recording_id.startdate`. We could add a
     # check here on `year(today())`, but that will be dead code for the next 60+ years.
@@ -199,17 +202,33 @@ end
 """
     EDF.read(file::AbstractString)
 
-Read the given file and return an `EDF.File` object containing the parsed data.
+Read the given file and return an `EDF.File` object containing all parsable
+header, signal, and annotation data in the EDF file at `path`.
 """
-read(file::AbstractString) = read!(open(file))
+read(path::AbstractString) = read!(open(path))
 
+"""
+    EDF.read!(file::File)
+
+Read the sample values and annotation data for `file.signals` and `file.annotations`
+from `file.io` and add them to `file`, returning the modified file. For files that
+have already been completely read, this function returns the identity.
+"""
 function read!(file::File)
     (isopen(file.io) || !eof(file.io)) && read_signals!(file)
     return file
 end
 
-function open(file::AbstractString)
-    io = Base.open(file, "r")
+"""
+    EDF.open(path::AbstractString)
+
+Read the file, signal, and annotation-wide file headers from the EDF file at
+`path`, returning an `File` instance without reading the file's sample data.
+The file's IO source remains open until closed manually with `close(file)`
+or automatically when calling `read!(file)`.
+"""
+function open(path::AbstractString)
+    io = Base.open(path, "r")
     file_header, signal_headers = read_file_and_signal_headers(io)
     annotations = extract_annotation_header!(signal_headers)
     signals = [header => Vector{Int16}() for header in signal_headers]

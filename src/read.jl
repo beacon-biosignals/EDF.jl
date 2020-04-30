@@ -3,25 +3,25 @@
 #####
 
 function Base.tryparse(::Type{PatientID}, raw::AbstractString)
-    s = split(raw, ' '; keepempty=false)
-    length(s) == 4 || return
-    code_raw, sex_raw, dob_raw, name_raw = s
-    length(sex_raw) == 1 || return
+    metadata = split(raw, ' '; keepempty=false)
+    length(metadata) == 4 || return nothing
+    code_raw, sex_raw, dob_raw, name_raw = metadata
+    length(sex_raw) == 1 || return nothing
     code = edf_unknown(code_raw)
     sex = edf_unknown(first, sex_raw)
     dob = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), dob_raw)
-    dob === nothing && return
+    dob === nothing && return nothing
     name = edf_unknown(name_raw)
     return PatientID(code, sex, dob, name)
 end
 
 function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
-    s = split(raw, ' '; keepempty=false)
-    length(s) == 5 || return
-    first(s) == "Startdate" || return
-    _, start_raw, admin_raw, tech_raw, equip_raw = s
+    startswith(raw, "Startdate") || return nothing
+    metadata = split(chop(raw; head=9), ' '; keepempty=false)
+    length(metadata) == 4 || return nothing
+    start_raw, admin_raw, tech_raw, equip_raw = metadata
     startdate = edf_unknown(raw -> tryparse(Date, raw, dateformat"d-u-y"), start_raw)
-    startdate === nothing && return
+    startdate === nothing && return nothing
     admincode = edf_unknown(admin_raw)
     technician = edf_unknown(tech_raw)
     equipment = edf_unknown(equip_raw)
@@ -51,16 +51,11 @@ function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
     fields = String[String(Base.read(io, size))
                     for signal in 1:signal_count, size in FIELD_SIZES]
-    T = Union{SignalHeader,AnnotationListHeader}
-    signal_headers = T[SignalHeader(strip(fields[i,1]),
-                                    strip(fields[i,2]),
-                                    strip(fields[i,3]),
-                                    parse_float(fields[i,4]),
-                                    parse_float(fields[i,5]),
-                                    parse_float(fields[i,6]),
-                                    parse_float(fields[i,7]),
-                                    strip(fields[i,8]),
-                                    parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
+    signal_headers = [SignalHeader(strip(fields[i,1]), strip(fields[i,2]),
+                                   strip(fields[i,3]), parse_float(fields[i,4]),
+                                   parse_float(fields[i,5]), parse_float(fields[i,6]),
+                                   parse_float(fields[i,7]), strip(fields[i,8]),
+                                   parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
     skip(io, 32 * signal_count) # Reserved
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")

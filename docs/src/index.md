@@ -18,10 +18,15 @@ object and a vector of `EDF.Signal`s.
 
 ```@docs
 EDF.File
-EDF.Header
-EDF.Signal
+EDF.FileHeader
+EDF.SignalHeader
+EDF.AnnotationList
+EDF.AnnotationListHeader
+EDF.AbstractAnnotation
 EDF.RecordAnnotation
-EDF.AnnotationsList
+EDF.TimestampAnnotation
+EDF.TimestampAnnotationList
+EDF.DataRecord
 EDF.PatientID
 EDF.RecordingID
 ```
@@ -31,12 +36,13 @@ records.
 However, the EDF+ specification introduced the notion of discontinuous signals, denoted
 with a value of "EDF+D" in one of the reserved fields.
 The `EDF.Header` type notes this in a `Bool` field called `continuous`.
-The signal data is always store contiguously, regardless of whether the data records are
-declared to be continuous, but, given an `EDF.Signal` object, users of the package can
-divide the signal by records if needed using
+The signal data is always stored contiguously, regardless of whether the data records are
+declared to be continuous, but, given an `EDF.Signal` object and its associated sample values,
+users of the package can divide the signal by records if needed using
 
 ```julia
-Iterators.partition(signal.samples, signal.n_samples)
+signal, samples = first(edf.signals)
+Iterators.partition(samples, signal.n_samples)
 ```
 
 This will construct a lazy iterator over non-overlapping chunks of the signal, iterating
@@ -45,7 +51,9 @@ which yields a total of `header.n_records` items.
 ### Reading
 
 ```@docs
+EDF.open
 EDF.read
+EDF.read!
 EDF.decode
 ```
 

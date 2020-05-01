@@ -97,13 +97,11 @@ function write_file_header(io::IO, header::FileHeader, signal_count::Integer)
            write_padded(io, signal_count, 4)
 end
 
-const SIGNAL_HEADER_PADS = [16, 80, 8, 8, 8, 8, 8, 80, 8]
-
 function write_signal_headers(io::IO, file::File, has_annotations::Bool)
     bytes_written = 0
-    for (field, padding) in zip(1:fieldcount(SignalHeader), SIGNAL_HEADER_PADS)
+    for (field, padding) in zip(1:fieldcount(SignalHeader), SIGNAL_HEADER_BYTES)
         for signal in file.signals
-            header = signal.header
+            header = first(signal)
             bytes_written += write_padded(io, getfield(header, field), padding)
         end
         if has_annotations
@@ -118,11 +116,11 @@ function write_data(io::IO, file::File)
     bytes_written = 0
     max_bytes = file.annotations.header.n_samples * 2
     for record_index in 1:file.header.n_records
-        for signal in file.signals
-            sample_count = signal.header.n_samples
+        for (signal, samples) in file.signals
+            sample_count = signal.n_samples
             start = (record_index - 1) * sample_count
-            stop = min(start + sample_count, length(signal.samples))
-            bytes_written += Base.write(io, view(signal.samples, (start + 1):stop))
+            stop = min(start + sample_count, length(samples))
+            bytes_written += Base.write(io, view(samples, (start + 1):stop))
         end
         if file.annotations !== nothing
             bytes_written += write_padded(io, file.annotations.records[record_index], max_bytes; pad=0x0)
@@ -139,4 +137,4 @@ Write the given `EDF.File` object to the given stream or file and return the num
 bytes written.
 """
 write(io::IO, file::File) = write_header(io, file) + write_data(io, file)
-write(path::AbstractString, edf::File) = open(io -> write(io, edf), path, "w")
+write(path::AbstractString, edf::File) = Base.open(io -> write(io, edf), path, "w")

@@ -51,14 +51,14 @@ struct RecordingID
 end
 
 """
-    AbstractAnnotation
+    EDF.AbstractAnnotation
 
 A type representing an EDF+ Annotation.
 """
 abstract type AbstractAnnotation end
 
 """
-    TimestampAnnotation <: AbstractAnnotation
+    EDF.TimestampAnnotation <: EDF.AbstractAnnotation
 
 A type representing a time-stamp annotations list (TAL).
 
@@ -76,7 +76,7 @@ struct TimestampAnnotation <: AbstractAnnotation
 end
 
 """
-    RecordAnnotation <: AbstractAnnotation
+    EDF.RecordAnnotation <: EDF.AbstractAnnotation
 
 A type representing a record-level annotation in an `EDF.File`.
 
@@ -93,14 +93,14 @@ struct RecordAnnotation <: AbstractAnnotation
 end
 
 """
-    TimestampAnnotationList
+    EDF.TimestampAnnotationList
 
-An alias for a list of TimestampAnnotations, if present in a `DataRecord`.
+An alias for a list of `TimestampAnnotation`s, if present, in a `DataRecord`.
 """
 const TimestampAnnotationList = Union{Vector{TimestampAnnotation},Nothing}
 
 """
-    DataRecord
+    EDF.DataRecord
 
 A representation of all annotation information in an EDF+ data record.
 """
@@ -109,7 +109,7 @@ const DataRecord = Pair{RecordAnnotation,TimestampAnnotationList}
 """
     EDF.FileHeader
 
-Type representing the header record for an EDF file.
+Type representing file-wide metadata for an EDF `File`.
 
 # Fields
 
@@ -168,38 +168,21 @@ Type representing the header record for an `AnnotationList`
 # Fields
 
 * `n_samples` (`Int16`): The number of samples in a single data record
+* `offset_in_file` (`Int`): The annotation header's position,
+   relative to other signals in its origin file
 """
 struct AnnotationListHeader
     n_samples::Int16
+    offset_in_file::Int
 end
 
-AnnotationListHeader(header::SignalHeader) = AnnotationListHeader(header.n_samples)
+function AnnotationListHeader(header::SignalHeader, offset::Int)
+    return AnnotationListHeader(header.n_samples, offset)
+end
 
 function SignalHeader(header::AnnotationListHeader)
     return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
 end
-
-
-# TODO: Make the vector of samples mmappable
-"""
-    EDF.Signal
-
-Type representing a single signal extracted from an EDF file.
-
-# Fields
-
-* `header` (`SignalHeader`): Signal-level metadata extracted from the signal header
-* `samples` (`Vector{Int16}`): The encoded sample values of the signal
-
-!!! note
-    Samples are stored in a `Signal` object in the same encoding as they appear in raw
-    EDF files. See [`decode`](@ref) for decoding signals to their physical values.
-"""
-struct Signal
-    header::SignalHeader
-    samples::Vector{Int16}
-end
-
 
 """
     EDF.AnnotationList
@@ -217,29 +200,32 @@ struct AnnotationList
 end
 
 """
-    EDF.File
+    EDF.File{C<:IO}
 
-Type representing a parsed EDF file.
-All data defined in the file is accessible from this type by inspecting its fields
-and the fields of the types of those fields.
+Type representing an EDF file's metadata.
+To access the sample data for a signal in `signals`
 
 # Fields
 
-* `header` (`EDF.FileHeader`): File-level metadata extracted from the file header
-* `signals` (`Vector{EDF.Signal}`): All signals extracted from the data records
-* `annotations` (`Vector{EDF.RecordAnnotation}` or `Nothing`): A vector of length
-  `header.n_records` where each element contains annotations for the corresponding
-  data record, if annotations are present in the file
+* `io` (`C<:IO`): The IO source for the EDF file.
+* `header` (`FileHeader`): File-level metadata extracted from the file header
+* `signals` (`Vector{Pair{SignalHeader,Vector{Int16}}}`): A `Vector` of `Pair`s, where
+   the first item in each pair contains signal-level metadata for the signal's
+   samples, and the second item contains the encoded sample values for that signal
+* `annotations` (`AnnotationList` or `Nothing`): If specified, a list of EDF+ Annotations
 """
-struct File
+struct File{C<:IO}
+    io::C
     header::FileHeader
-    signals::Vector{Signal}
+    signals::Vector{Pair{SignalHeader,Vector{Int16}}}
     annotations::Union{AnnotationList,Nothing}
 end
 
 function Base.show(io::IO, edf::File)
     print(io, "EDF.File with ", length(edf.signals), " signals")
 end
+
+Base.close(file::File) = close(file.io)
 
 #####
 ##### Utilities
@@ -248,17 +234,19 @@ end
 """
     EDF.decode(signal::Signal)
 
-Decode the sample values in the given signal and return a `Vector` of the physical values.
+Decode the data in `samples` using `samples.signal` and return a `Vector` of the physical values.
 """
-function decode(signal::Signal)
-    digital_range = signal.header.digital_max - signal.header.digital_min
-    physical_range = signal.header.physical_max - signal.header.physical_min
-    return @. ((signal.samples - signal.header.digital_min) / digital_range) * physical_range + signal.header.physical_min
+function decode((signal, samples)::Pair{SignalHeader,Vector{Int16}})
+    digital_range = signal.digital_max - signal.digital_min
+    physical_range = signal.physical_max - signal.physical_min
+    return @. ((samples - signal.digital_min) / digital_range) * physical_range + signal.physical_min
 end
 
 #####
 ##### I/O
 #####
+
+const SIGNAL_HEADER_BYTES = (16, 80, 8, 8, 8, 8, 8, 80, 8)
 
 include("read.jl")
 include("write.jl")

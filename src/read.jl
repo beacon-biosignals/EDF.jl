@@ -1,5 +1,5 @@
 #####
-##### Parsing utilities
+##### parsing utilities
 #####
 
 function Base.tryparse(::Type{PatientID}, raw::AbstractString)
@@ -44,7 +44,7 @@ edf_unknown(f, field::AbstractString) = field == "X" ? missing : f(field)
 edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 
 #####
-##### Reading EDF Files
+##### header reading utilities
 #####
 
 function read_file_and_signal_headers(io::IO)
@@ -110,38 +110,47 @@ function extract_annotation_header!(signal_headers::Vector{SignalHeader})
     return annotations
 end
 
-read_signals!(file::File) = read_signals!(file.io, file.header, file.signals, file.annotations)
+#####
+##### signal reading utilities
+#####
 
-function read_signals!(io::IO, file_header::FileHeader, signals, annotations::AnnotationList)
-    for record in 1:file_header.n_records
-        for (index, (signal::SignalHeader, samples::Vector{Int16})) in enumerate(signals)
-            if index == annotations.header.offset_in_file
-                data = Base.read(io, 2 * annotations.header.n_samples)
-                read_annotations!(annotations.records, data, record)
+function read_signals!(file::File)
+    for (signal_header, samples) in file.signals
+        resize!(samples, file.header.n_records * signal_header.n_samples)
+    end
+    if file.annotations === nothing
+        for record in 1:file.header.n_records
+            for (signal_header, samples) in file.signals
+                record_start = 1 + (record - 1) * signal_header.n_samples
+                record_stop = record * signal_header.n_samples
+                Base.read!(file.io, view(samples, record_start:record_stop))
             end
-            data = Base.read(io, 2 * signal.n_samples)
-            read_samples!(samples, data)
         end
-        if annotations.header.offset_in_file == lastindex(signals) + 1
-            data = Base.read(io, 2 * annotations.header.n_samples)
-            read_annotations!(annotations.records, data, record)
+    else
+        annotation_record_buffer = Vector{UInt8}(undef, 2 * file.annotations.header.n_samples)
+        for record in 1:file.header.n_records
+            for (index, (signal_header, samples)) in enumerate(file.signals)
+                if file.annotations.header.offset_in_file == index
+                    Base.read!(file.io, annotation_record_buffer)
+                    read_annotations!(file.annotations.records, annotation_record_buffer, record)
+                end
+                record_start = 1 + (record - 1) * signal_header.n_samples
+                record_stop = record * signal_header.n_samples
+                Base.read!(file.io, view(samples, record_start:record_stop))
+            end
+            if file.annotations.header.offset_in_file == lastindex(file.signals) + 1
+                Base.read!(file.io, annotation_record_buffer)
+                read_annotations!(file.annotations.records, annotation_record_buffer, record)
+            end
         end
     end
-    @assert eof(io)
+    @assert eof(file.io)
     return nothing
 end
 
-function read_signals!(io::IO, file_header::FileHeader, signals, ::Nothing)
-    for record in 1:file_header.n_records,
-        (index, (signal::SignalHeader, samples::Vector{Int16})) in enumerate(signals)
-        data = Base.read(io, 2 * signal.n_samples)
-        read_samples!(samples, data)
-    end
-    @assert eof(io)
-    return nothing
-end
-
-read_samples!(samples::Vector{Int16}, data::Vector{UInt8}) = append!(samples, reinterpret(Int16, data))
+#####
+##### annotation reading utilities
+#####
 
 function read_annotations!(records::Vector{DataRecord}, data::Vector{UInt8}, index::Integer)
     record = IOBuffer(data)
@@ -197,20 +206,30 @@ function read_events(io::IO)
     return isempty(events) ? nothing : events
 end
 
-"""
-    EDF.read(file::AbstractString)
+#####
+##### API functions
+#####
 
-Read the given file and return an `EDF.File` object containing all parsable
-header, signal, and annotation data in the EDF file at `path`.
 """
-read(path::AbstractString) = open(read!, path)
+    EDF.File(io::IO)
+
+Return an `EDF.File` instance that wraps the given `io`, as well as EDF-formatted
+file, signal, and annotation headers that are read from `io`. This constructor
+only reads headers, not the subsequent sample data; to read the subsequent sample
+data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
+"""
+function File(io::IO)
+    file_header, signal_headers = read_file_and_signal_headers(io)
+    annotations = extract_annotation_header!(signal_headers)
+    signals = [header => Int16[] for header in signal_headers]
+    return File{typeof(io)}(io, file_header, signals, annotations)
+end
 
 """
     EDF.read!(file::File)
 
-Read the sample values and annotation data for `file.signals` and `file.annotations`
-from `file.io` and add them to `file`, returning the modified file. For files that
-have already been completely read, this function returns the identity.
+Read all EDF sample and annotation data from `file.io` into `file.signals` and
+`file.annotations`, returning `file`. If `eof(file.io)`, return `file` unmodified.
 """
 function read!(file::File)
     (isopen(file.io) || !eof(file.io)) && read_signals!(file)
@@ -218,32 +237,17 @@ function read!(file::File)
 end
 
 """
-    EDF.open(path::AbstractString)
+    EDF.read(io::IO)
 
-Read the file, signal, and annotation-wide file headers from the EDF file at
-`path`, returning an `EDF.File` instance without reading the file's sample data.
-The file's IO source remains open until closed manually with `close(file)`
-or automatically when calling `read!(file)`.
+Return `EDF.read!(EDF.File(io))`.
+
+See also: [`EDF.File`](@ref), [`EDF.read!`](@ref)
 """
-function open(path::AbstractString)
-    io = Base.open(path, "r")
-    file_header, signal_headers = read_file_and_signal_headers(io)
-    annotations = extract_annotation_header!(signal_headers)
-    signals = [header => Vector{Int16}() for header in signal_headers]
-    return File{typeof(io)}(io, file_header, signals, annotations)
-end
+read(io::IO) = read!(File(io))
 
 """
-    EDF.open(f::Function, path::AbstractString)
+    EDF.read(path::AbstractString)
 
-Apply the function `f` to the result of `open(path)` and close the resulting
-`EDF.File` instance upon completion.
+Return `open(EDF.read, path)`.
 """
-function open(f::Function, path::AbstractString)
-    file = open(path)
-    try
-        return f(file)
-    finally
-        close(file)
-    end
-end
+read(path::AbstractString) = open(read, path)

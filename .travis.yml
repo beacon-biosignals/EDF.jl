@@ -1,7 +1,6 @@
 language: julia
 os:
   - linux
-dist: xenial
 if: branch = master OR tag IS present OR type = pull_request
 julia:
   - 1.0
@@ -12,5 +11,12 @@ matrix:
   allow_failures:
   - julia: nightly
 codecov: true
-after_success:
-  - docs/build.sh
+jobs:
+  include:
+    - stage: "Documentation"
+      julia: 1.0
+      os: linux
+      script:
+        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=".")); Pkg.instantiate()'
+        - julia --project=docs/ docs/make.jl
+      after_success: skip

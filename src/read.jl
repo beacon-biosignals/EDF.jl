@@ -128,7 +128,6 @@ function read_signals!(io::IO, file_header::FileHeader, signals, annotations::An
         end
     end
     @assert eof(io)
-    close(io)
     return nothing
 end
 
@@ -139,7 +138,6 @@ function read_signals!(io::IO, file_header::FileHeader, signals, ::Nothing)
         read_samples!(samples, data)
     end
     @assert eof(io)
-    close(io)
     return nothing
 end
 
@@ -205,7 +203,7 @@ end
 Read the given file and return an `EDF.File` object containing all parsable
 header, signal, and annotation data in the EDF file at `path`.
 """
-read(path::AbstractString) = read!(open(path))
+read(path::AbstractString) = open(read!, path)
 
 """
     EDF.read!(file::File)
@@ -233,4 +231,19 @@ function open(path::AbstractString)
     annotations = extract_annotation_header!(signal_headers)
     signals = [header => Vector{Int16}() for header in signal_headers]
     return File{typeof(io)}(io, file_header, signals, annotations)
+end
+
+"""
+    EDF.open(f::Function, path::AbstractString)
+
+Apply the function `f` to the result of `open(path)` and close the resulting
+`EDF.File` instance upon completion.
+"""
+function open(f::Function, path::AbstractString)
+    file = open(path)
+    try
+        return f(file)
+    finally
+        close(file)
+    end
 end

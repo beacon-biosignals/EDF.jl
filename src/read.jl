@@ -50,11 +50,11 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
     fields = [String(Base.read(io, size)) for signal in 1:signal_count, size in SIGNAL_HEADER_BYTES]
-    signal_headers = [Signal(strip(fields[i,1]), strip(fields[i,2]),
-                             strip(fields[i,3]), parse_float(fields[i,4]),
-                             parse_float(fields[i,5]), parse_float(fields[i,6]),
-                             parse_float(fields[i,7]), strip(fields[i,8]),
-                             parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
+    signal_headers = [SignalHeader(strip(fields[i,1]), strip(fields[i,2]),
+                                   strip(fields[i,3]), parse_float(fields[i,4]),
+                                   parse_float(fields[i,5]), parse_float(fields[i,6]),
+                                   parse_float(fields[i,7]), strip(fields[i,8]),
+                                   parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
     skip(io, 32 * signal_count) # Reserved
     position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
                                                "Expected $header_byte_count but was $(position(io))")
@@ -98,7 +98,7 @@ function read_file_header(io::IO)
     return header, header_byte_count, signal_count
 end
 
-function extract_annotation_header!(signal_headers::Vector{Signal})
+function extract_annotation_header!(signal_headers::Vector{SignalHeader})
     annotation_index = findfirst(header -> header.label == "EDF Annotations", signal_headers)
     if annotation_index !== nothing
         annotation_header = AnnotationListHeader(signal_headers[annotation_index], annotation_index)
@@ -114,7 +114,7 @@ read_signals!(file::File) = read_signals!(file.io, file.header, file.signals, fi
 
 function read_signals!(io::IO, file_header::FileHeader, signals, annotations::AnnotationList)
     for record in 1:file_header.n_records
-        for (index, (signal::Signal, samples::Vector{Int16})) in enumerate(signals)
+        for (index, (signal::SignalHeader, samples::Vector{Int16})) in enumerate(signals)
             if index == annotations.header.offset_in_file
                 data = Base.read(io, 2 * annotations.header.n_samples)
                 read_annotations!(annotations.records, data, record)
@@ -134,7 +134,7 @@ end
 
 function read_signals!(io::IO, file_header::FileHeader, signals, ::Nothing)
     for record in 1:file_header.n_records,
-        (index, (signal::Signal, samples::Vector{Int16})) in enumerate(signals)
+        (index, (signal::SignalHeader, samples::Vector{Int16})) in enumerate(signals)
         data = Base.read(io, 2 * signal.n_samples)
         read_samples!(samples, data)
     end
@@ -223,7 +223,7 @@ end
     EDF.open(path::AbstractString)
 
 Read the file, signal, and annotation-wide file headers from the EDF file at
-`path`, returning an `File` instance without reading the file's sample data.
+`path`, returning an `EDF.File` instance without reading the file's sample data.
 The file's IO source remains open until closed manually with `close(file)`
 or automatically when calling `read!(file)`.
 """

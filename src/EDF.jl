@@ -132,7 +132,7 @@ struct FileHeader
 end
 
 """
-    EDF.Signal
+    EDF.SignalHeader
 
 Type representing the header record for a single EDF signal.
 
@@ -148,7 +148,7 @@ Type representing the header record for a single EDF signal.
 * `prefilter` (`String`): Description of any prefiltering done to the signal
 * `n_samples` (`Int16`): The number of samples in a data record (NOT overall)
 """
-struct Signal
+struct SignalHeader
     label::String
     transducer::String
     physical_units::String
@@ -176,10 +176,10 @@ struct AnnotationListHeader
     offset_in_file::Int
 end
 
-AnnotationListHeader(header::Signal, offset::Int) = AnnotationListHeader(header.n_samples, offset)
+AnnotationListHeader(header::SignalHeader, offset::Int) = AnnotationListHeader(header.n_samples, offset)
 
-function Signal(header::AnnotationListHeader)
-    return Signal("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
+function SignalHeader(header::AnnotationListHeader)
+    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)
 end
 
 """
@@ -207,7 +207,7 @@ To access the sample data for a signal in `signals`
 
 * `io` (`C<:IO`): The IO source for the EDF file.
 * `header` (`FileHeader`): File-level metadata extracted from the file header
-* `signals` (`Vector{Pair{Signal,Vector{Int16}}}`): A `Vector` of `Pair`s, where
+* `signals` (`Vector{Pair{SignalHeader,Vector{Int16}}}`): A `Vector` of `Pair`s, where
    the first item in each pair contains signal-level metadata for the signal's
    samples, and the second item contains the encoded sample values for that signal
 * `annotations` (`AnnotationList` or `Nothing`): If specified, a list of EDF+ Annotations
@@ -215,7 +215,7 @@ To access the sample data for a signal in `signals`
 struct File{C<:IO}
     io::C
     header::FileHeader
-    signals::Vector{Pair{Signal,Vector{Int16}}}
+    signals::Vector{Pair{SignalHeader,Vector{Int16}}}
     annotations::Union{AnnotationList,Nothing}
 end
 
@@ -234,7 +234,7 @@ Base.close(file::File) = close(file.io)
 
 Decode the data in `samples` using `samples.signal` and return a `Vector` of the physical values.
 """
-function decode((signal, samples)::Pair{Signal,Vector{Int16}})
+function decode((signal, samples)::Pair{SignalHeader,Vector{Int16}})
     digital_range = signal.digital_max - signal.digital_min
     physical_range = signal.physical_max - signal.physical_min
     return @. ((samples - signal.digital_min) / digital_range) * physical_range + signal.physical_min

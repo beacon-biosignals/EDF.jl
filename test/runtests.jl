@@ -1,5 +1,5 @@
 using EDF
-using EDF: AnnotationList, PatientID, RecordAnnotation, TimestampAnnotation, RecordingID, Signal
+using EDF: AnnotationList, PatientID, RecordAnnotation, TimestampAnnotation, RecordingID, SignalHeader
 using Dates
 using Test
 
@@ -47,7 +47,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test edf.header.start == DateTime(2014, 4, 29, 22, 19, 44)
     @test edf.header.n_records == 6
     @test edf.header.duration == 1.0
-    @test edf.signals isa Vector{Pair{Signal,Vector{Int16}}}
+    @test edf.signals isa Vector{Pair{SignalHeader,Vector{Int16}}}
     @test length(edf.signals) == 139
     for (signal, samples) in edf.signals
         @test length(samples) == signal.n_samples * edf.header.n_records

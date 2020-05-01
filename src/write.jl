@@ -99,13 +99,13 @@ end
 
 function write_signal_headers(io::IO, file::File, has_annotations::Bool)
     bytes_written = 0
-    for (field, padding) in zip(1:fieldcount(Signal), SIGNAL_HEADER_BYTES)
+    for (field, padding) in zip(1:fieldcount(SignalHeader), SIGNAL_HEADER_BYTES)
         for signal in file.signals
             header = first(signal)
             bytes_written += write_padded(io, getfield(header, field), padding)
         end
         if has_annotations
-            header = EDF.Signal(file.annotations.header)
+            header = EDF.SignalHeader(file.annotations.header)
             bytes_written += write_padded(io, getfield(header, field), padding)
         end
     end

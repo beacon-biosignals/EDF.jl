@@ -19,7 +19,7 @@ object and a vector of `EDF.Signal`s.
 ```@docs
 EDF.File
 EDF.FileHeader
-EDF.Signal
+EDF.SignalHeader
 EDF.AnnotationList
 EDF.AnnotationListHeader
 EDF.AbstractAnnotation

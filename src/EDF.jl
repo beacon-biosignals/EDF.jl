@@ -176,7 +176,9 @@ struct AnnotationListHeader
     offset_in_file::Int
 end
 
-AnnotationListHeader(header::SignalHeader, offset::Int) = AnnotationListHeader(header.n_samples, offset)
+function AnnotationListHeader(header::SignalHeader, offset::Int)
+    return AnnotationListHeader(header.n_samples, offset)
+end
 
 function SignalHeader(header::AnnotationListHeader)
     return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, "", header.n_samples)

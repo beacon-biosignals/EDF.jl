@@ -127,20 +127,20 @@ function read_signals!(file::File)
             end
         end
     else
-        annotation_record_buffer = Vector{UInt8}(undef, 2 * file.annotations.header.n_samples)
+        annotations_record_bytes_buffer = Vector{UInt8}(undef, 2 * file.annotations.header.n_samples)
         for record in 1:file.header.n_records
             for (index, (signal_header, samples)) in enumerate(file.signals)
-                if file.annotations.header.offset_in_file == index
+                if file.annotations.header.original_index == index
                     Base.read!(file.io, annotation_record_buffer)
-                    read_annotations!(file.annotations.records, annotation_record_buffer, record)
+                    read_annotations!(file.annotations.records, annotations_record_bytes_buffer, record)
                 end
                 record_start = 1 + (record - 1) * signal_header.n_samples
                 record_stop = record * signal_header.n_samples
                 Base.read!(file.io, view(samples, record_start:record_stop))
             end
-            if file.annotations.header.offset_in_file == lastindex(file.signals) + 1
-                Base.read!(file.io, annotation_record_buffer)
-                read_annotations!(file.annotations.records, annotation_record_buffer, record)
+            if file.annotations.header.original_index == lastindex(file.signals) + 1
+                Base.read!(file.io, annotations_record_bytes_buffer)
+                read_annotations!(file.annotations.records, annotations_record_bytes_buffer, record)
             end
         end
     end

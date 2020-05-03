@@ -88,26 +88,22 @@ function read_file_header(io::IO)
 
     header_byte_count = parse(Int, String(Base.read(io, 8)))
     reserved = String(Base.read(io, 44))
-    continuous = !startswith(reserved, "EDF+D")
-    n_records = parse(Int, String(Base.read(io, 8)))
-    duration = parse(Float64, String(Base.read(io, 8)))
+    is_contiguous = !startswith(reserved, "EDF+D")
+    record_count = parse(Int, String(Base.read(io, 8)))
+    seconds_per_record = parse(Float64, String(Base.read(io, 8)))
     signal_count = parse(Int, String(Base.read(io, 4)))
 
-    header = FileHeader(version, patient_id, recording_id, start,
-                        continuous, n_records, duration)
+    header = FileHeader(version, patient_id, recording_id, start, is_contiguous,
+                        record_count, seconds_per_record)
     return header, header_byte_count, signal_count
 end
 
-function extract_annotation_header!(signal_headers::Vector{SignalHeader})
-    annotation_index = findfirst(header -> header.label == "EDF Annotations", signal_headers)
-    if annotation_index !== nothing
-        annotation_header = AnnotationListHeader(signal_headers[annotation_index], annotation_index)
-        annotations = AnnotationList(annotation_header, Vector{DataRecord}())
-        deleteat!(signal_headers, annotation_index)
-    else
-        annotations = nothing
-    end
-    return annotations
+function extract_annotations_signal_header!(headers::Vector{SignalHeader})
+    index = findfirst(header -> header.label == ANNOTATIONS_SIGNAL_LABEL, headers)
+    index === nothing && return nothing
+    annotations_signal_header = AnnotationsSignalHeader(headers[index].samples_per_record, index)
+    deleteat!(headers, index)
+    return annotations_signal_header
 end
 
 #####
@@ -115,32 +111,24 @@ end
 #####
 
 function read_signals!(file::File)
-    for (signal_header, samples) in file.signals
-        resize!(samples, file.header.n_records * signal_header.n_samples)
+    for signal in file.signals
+        resize!(signal.samples, file.header.record_count * signal.header.samples_per_record)
     end
     if file.annotations === nothing
-        for record in 1:file.header.n_records
-            for (signal_header, samples) in file.signals
-                record_start = 1 + (record - 1) * signal_header.n_samples
-                record_stop = record * signal_header.n_samples
-                Base.read!(file.io, view(samples, record_start:record_stop))
-            end
+        for record in 1:file.header.record_count, signal in file.signals
+            read_signal_record!(file, signal, record)
         end
     else
-        annotations_record_bytes_buffer = Vector{UInt8}(undef, 2 * file.annotations.header.n_samples)
-        for record in 1:file.header.n_records
-            for (index, (signal_header, samples)) in enumerate(file.signals)
+        buffer = Vector{UInt8}(undef, 2 * file.annotations.header.samples_per_record)
+        for record in 1:file.header.record_count
+            for (index, signal) in enumerate(file.signals)
                 if file.annotations.header.original_index == index
-                    Base.read!(file.io, annotation_record_buffer)
-                    read_annotations!(file.annotations.records, annotations_record_bytes_buffer, record)
+                    read_annotations_signal_record!(file, buffer, record)
                 end
-                record_start = 1 + (record - 1) * signal_header.n_samples
-                record_stop = record * signal_header.n_samples
-                Base.read!(file.io, view(samples, record_start:record_stop))
+                read_signal_record!(file, signal, record)
             end
             if file.annotations.header.original_index == lastindex(file.signals) + 1
-                Base.read!(file.io, annotations_record_bytes_buffer)
-                read_annotations!(file.annotations.records, annotations_record_bytes_buffer, record)
+                read_annotations_signal_record!(file, buffer, record)
             end
         end
     end
@@ -148,63 +136,78 @@ function read_signals!(file::File)
     return nothing
 end
 
+function read_signal_record!(file::File, signal::Signal, record::Int)
+    record_start = 1 + (record - 1) * signal.header.samples_per_record
+    record_stop = record * signal.header.samples_per_record
+    Base.read!(file.io, view(signal.samples, record_start:record_stop))
+    return nothing
+end
+
 #####
 ##### annotation reading utilities
 #####
 
-function read_annotations!(records::Vector{DataRecord}, data::Vector{UInt8}, index::Integer)
-    record = IOBuffer(data)
-    annotations = Vector{TimestampAnnotation}()
-    record_annotation = read_record_annotation(record)
-    while !eof(record) && Base.peek(record) != 0x0
-        push!(annotations, read_timestamp_annotation(record))
-    end
-    if isempty(annotations)
-        annotations = nothing
-    end
-    push!(records, record_annotation => annotations)
-    return nothing
+function read_annotations_signal_record!(file::File, buffer, record::Int)
+    Base.read!(file.io, buffer)
+    tals = TimestampedAnnotationList[]
+    # TODO
+    push!(file.annotations.records, tals)
+    return
 end
 
-function read_record_annotation(io::IO)
-    sign = read_sign(io)
-    offset = sign * parse(Float64, String(readuntil(io, 0x14)))
-    if Base.peek(io) !== 0x0
-        events = read_events(io)
-    else
-        events = nothing
-        Base.skip(io, 1)
-    end
-    return RecordAnnotation(offset, events)
-end
+# function read_annotations!(records::Vector{DataRecord}, data::Vector{UInt8}, index::Integer)
+#     record = IOBuffer(data)
+#     annotations = Vector{TimestampAnnotation}()
+#     record_annotation = read_record_annotation(record)
+#     while !eof(record) && Base.peek(record) != 0x0
+#         push!(annotations, read_timestamp_annotation(record))
+#     end
+#     if isempty(annotations)
+#         annotations = nothing
+#     end
+#     push!(records, record_annotation => annotations)
+#     return nothing
+# end
 
-function read_timestamp_annotation(io::IO)
-    sign = read_sign(io)
-    raw = readuntil(io, 0x14)
-    timestamp = split(String(raw), '\x15'; keepempty=false)
-    offset = flipsign(parse(Float64, popfirst!(timestamp)), sign)
-    if isempty(timestamp)
-        duration = nothing
-    else
-        duration = parse(Float64, popfirst!(timestamp))
-    end
-    events = read_events(io)
-    events !== nothing || error("No events found for timestamp annotation at offset $offset")
-    return TimestampAnnotation(offset, duration, events)
-end
+# function read_record_annotation(io::IO)
+#     sign = read_sign(io)
+#     offset = sign * parse(Float64, String(readuntil(io, 0x14)))
+#     if Base.peek(io) !== 0x0
+#         events = read_events(io)
+#     else
+#         events = nothing
+#         Base.skip(io, 1)
+#     end
+#     return RecordAnnotation(offset, events)
+# end
 
-function read_sign(io::IO)
-    sign = Base.read(io, UInt8)
-    sign === 0x2b || sign === 0x2d || error("Starting byte of annotation must be '+' or '-'.")
-    return sign === 0x2b ? 1 : -1
-end
-
-function read_events(io::IO)
-    raw = readuntil(io, 0x0)
-    events = split(String(raw), '\x14'; keepempty=false)
-    events = convert(Vector{String}, events)
-    return isempty(events) ? nothing : events
-end
+# function read_timestamp_annotation(io::IO)
+#     sign = read_sign(io)
+#     raw = readuntil(io, 0x14)
+#     timestamp = split(String(raw), '\x15'; keepempty=false)
+#     offset = flipsign(parse(Float64, popfirst!(timestamp)), sign)
+#     if isempty(timestamp)
+#         duration = nothing
+#     else
+#         duration = parse(Float64, popfirst!(timestamp))
+#     end
+#     events = read_events(io)
+#     events !== nothing || error("No events found for timestamp annotation at offset $offset")
+#     return TimestampAnnotation(offset, duration, events)
+# end
+#
+# function read_sign(io::IO)
+#     sign = Base.read(io, UInt8)
+#     sign === 0x2b || sign === 0x2d || error("Starting byte of annotation must be '+' or '-'.")
+#     return sign === 0x2b ? 1 : -1
+# end
+#
+# function read_events(io::IO)
+#     raw = readuntil(io, 0x0)
+#     events = split(String(raw), '\x14'; keepempty=false)
+#     events = convert(Vector{String}, events)
+#     return isempty(events) ? nothing : events
+# end
 
 #####
 ##### API functions
@@ -220,9 +223,9 @@ data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
 """
 function File(io::IO)
     file_header, signal_headers = read_file_and_signal_headers(io)
-    annotations = extract_annotation_header!(signal_headers)
-    signals = [header => Int16[] for header in signal_headers]
-    return File{typeof(io)}(io, file_header, signals, annotations)
+    annotations_header = extract_annotations_signal_header!(signal_headers)
+    annotations = annotations_header === nothing ? nothing : AnnotationsSignal(annotations_header)
+    return File(io, file_header, Signal.(signal_headers), annotations)
 end
 
 """

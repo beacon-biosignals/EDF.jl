@@ -1,0 +1,231 @@
+#####
+##### `EDF.Signal`
+#####
+# TODO canonicalized label parsing
+
+const SIGNAL_HEADER_BYTES = (16, 80, 8, 8, 8, 8, 8, 80, 8)
+
+"""
+    EDF.SignalHeader
+
+Type representing the header for a single EDF signal.
+
+# Fields
+
+* `label::String`: the signal's type/sensor label, see https://www.edfplus.info/specs/edftexts.html#label
+* `transducer_type::String`: non-standardized transducer type information
+* `physical_dimension::String`: see https://www.edfplus.info/specs/edftexts.html#physidim
+* `physical_minimum::Float32`: physical minimum value of the signal
+* `physical_maximum::Float32`: physical maximum value of the signal
+* `digital_minimum::Float32`: minimum value of the signal that could occur in a data record
+* `digital_maximum::Float32`: maximum value of the signal that could occur in a data record
+* `prefilter::String`: non-standardized prefiltering information
+* `samples_per_record::Int16`: number of samples in a data record (NOT overall)
+"""
+struct SignalHeader
+    label::String
+    transducer_type::String
+    physical_dimension::String
+    physical_minimum::Float32
+    physical_maximum::Float32
+    digital_minimum::Float32
+    digital_maximum::Float32
+    prefilter::String
+    samples_per_record::Int16
+end
+
+"""
+    EDF.Signal
+
+Type representing a single EDF signal.
+
+# Fields
+
+* `header::SignalHeader`
+* `samples::Vector{Int16}`
+"""
+struct Signal
+    header::SignalHeader
+    samples::Vector{Int16}
+end
+
+Signal(header::SignalHeader) = Signal(header, Int16[])
+
+"""
+    EDF.decode(signal::Signal)
+
+Return `signal.samples` decoded into the physical units specified by `signal.header`.
+"""
+function decode(signal::Signal)
+    dmin, dmax = signal.header.digital_minimum, signal.header.digital_maximum
+    pmin, pmax = signal.header.physical_minimum, signal.header.physical_maximum
+    return @. ((signal.samples - dmin) / (dmax - dmin)) * (pmax - pmin) + pmin
+end
+
+#####
+##### `EDF.AnnotationsSignal`
+#####
+
+const ANNOTATIONS_SIGNAL_LABEL = "EDF Annotations"
+
+"""
+    EDF.AnnotationsSignalHeader
+
+Type representing the header for a single EDF Annotations signal.
+
+# Fields
+
+* `samples_per_record::Int16`: number of samples in a data record (NOT overall)
+* `original_index::Int`: the original index of the annotations signal in the EDF file's
+  list of signals (this is a "bookkeeping index" for use by EDF.jl, and is not part of
+  the actual EDF/EDF+ specification)
+"""
+struct AnnotationsSignalHeader
+    samples_per_record::Int16
+    original_index::Int
+end
+
+"""
+    EDF.AnnotationsSignal
+
+Type representing a single EDF Annotations signal.
+
+# Fields
+
+* `header::AnnotationsSignalHeader`
+* `records::Vector{Vector{TimestampedAnnotationList}}`
+"""
+struct AnnotationsSignal
+    header::AnnotationsSignalHeader
+    records::Vector{Vector{TimestampedAnnotationList}}
+end
+
+AnnotationsSignal(header::AnnotationsSignalHeader) = AnnotationsSignal(header, Vector{TimestampedAnnotationList}[])
+
+"""
+    EDF.TimestampedAnnotationList <: EDF.AbstractAnnotation
+
+A type representing a time-stamped annotations list (TAL).
+
+See EDF+ specification for details.
+
+# Fields
+
+* `onset_in_seconds::Float64`: onset w.r.t. recording start time (may be negative)
+* `duration_in_seconds::Union{Float64,Nothing}`: duration of this TAL
+* `annotations::Vector{String}`: the annotations associated with this TAL
+"""
+struct TimestampedAnnotationList
+    onset_in_seconds::Float64
+    duration_in_seconds::Union{Float64,Nothing}
+    annotations::Vector{String}
+end
+
+# TODO replace with convert methods
+# function SignalHeader(header::AnnotationsSignalHeader)
+#     return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767,
+#                         "", header.samples_per_record)
+# end
+
+#####
+##### EDF+ Patient/Recording Metadata
+#####
+
+"""
+    EDF.PatientID
+
+A type representing the local patient identification field of an EDF+ header.
+
+See EDF+ specification for details.
+
+# Fields
+
+* `code::Union{String,Missing}`
+* `sex::Union{Char,Missing}` (`'M'`, `'F'`, or `missing`)
+* `birthdate::Union{Date,Missing}`
+* `name::Union{String,Missing}`
+"""
+struct PatientID
+    code::Union{String,Missing}
+    sex::Union{Char,Missing}
+    birthdate::Union{Date,Missing}
+    name::Union{String,Missing}
+end
+
+"""
+    EDF.RecordingID
+
+A type representing the local recording identification field of an EDF+ header.
+
+See EDF+ specification for details.
+
+# Fields
+
+* `startdate::Union{Date,Missing}`
+* `admincode::Union{String,Missing}`
+* `technician::Union{String,Missing}`
+* `equipment::Union{String,Missing}`
+"""
+struct RecordingID
+    startdate::Union{Date,Missing}
+    admincode::Union{String,Missing}
+    technician::Union{String,Missing}
+    equipment::Union{String,Missing}
+end
+
+#####
+##### `EDF.File`
+#####
+
+"""
+    EDF.FileHeader
+
+Type representing file-wide metadata for an EDF `File`.
+
+# Fields
+
+* `version::String`: data format version
+* `patient::Union{String,PatientID}`: local patient identification
+* `recording::Union{String,RecordingID}`: local recording identification
+* `start::DateTime`: start date/time of the recording
+* `is_contiguous::Bool`: if `true`, data records are contiguous; is `true` for non-EDF+-compliant files
+* `record_count::Int`: number of data records in the recording
+* `seconds_per_record::Float64`: duration of a data record in seconds
+"""
+struct FileHeader
+    version::String
+    patient::Union{String,PatientID}
+    recording::Union{String,RecordingID}
+    start::DateTime
+    is_contiguous::Bool
+    record_count::Int
+    seconds_per_record::Float64
+end
+
+# """
+#     EDF.File{I<:IO}
+#
+# Type representing an EDF file's metadata.
+# To access the sample data for a signal in `signals`
+#
+# # Fields
+#
+# * `io` (`I<:IO`): The IO source for the EDF file.
+# * `header` (`FileHeader`): File-level metadata extracted from the file header
+# * `signals` (`Vector{Pair{SignalHeader,Vector{Int16}}}`): A `Vector` of `Pair`s, where
+#    the first item in each pair contains signal-level metadata for the signal's
+#    samples, and the second item contains the encoded sample values for that signal
+# * `annotations` (`AnnotationList` or `Nothing`): If specified, a list of EDF+ Annotations
+# """
+struct File{I<:IO}
+    io::I
+    header::FileHeader
+    signals::Vector{Signal}
+    annotations::Union{AnnotationsSignal,Nothing}
+end
+
+function Base.show(io::IO, edf::File)
+    print(io, "EDF.File with ", length(edf.signals), " signals")
+end
+
+Base.close(file::File) = close(file.io)

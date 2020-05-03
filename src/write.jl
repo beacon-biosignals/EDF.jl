@@ -109,7 +109,7 @@ function write_signal_record(io::IO, signal::AnnotationsSignal, record_index::In
     end
     bytes_per_record = 2 * signal.samples_per_record
     while bytes_written < bytes_per_record
-        bytes_written += Base.write(io, ' ')
+        bytes_written += Base.write(io, 0x00)
     end
     return bytes_written
 end

@@ -71,7 +71,7 @@ function read_file_header(io::IO)
     recording_id = something(tryparse(RecordingID, recording_id_raw), String(recording_id_raw))
 
     start_raw = Base.read(io, 8)
-    push!(start_raw, 0x20)  # Push a space separator
+    push!(start_raw, UInt8(' '))
     append!(start_raw, Base.read(io, 8))  # Add the time
     # Parsing the date per the given format will validate EDF+ item 2
     start = DateTime(String(start_raw), dateformat"dd\.mm\.yy HH\.MM\.SS")
@@ -122,7 +122,7 @@ end
 function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
     io_for_record = IOBuffer(Base.read(file.io, 2 * signal.samples_per_record))
     tals_for_record = TimestampedAnnotationList[]
-    while !eof(io_for_record) && Base.peek(io_for_record) != 0x0
+    while !eof(io_for_record) && Base.peek(io_for_record) != 0x00
         push!(tals_for_record, read_tal(io_for_record))
     end
     push!(signal.records, tals_for_record)
@@ -135,7 +135,7 @@ function read_tal(io::IO)
     timestamp = split(String(bytes), '\x15'; keepempty=false)
     onset_in_seconds = flipsign(parse(Float64, timestamp[1]), sign)
     duration_in_seconds = length(timestamp) == 2 ? parse(Float64, timestamp[2]) : nothing
-    annotations = convert(Vector{String}, split(String(readuntil(io, 0x0)), '\x14'; keepempty=false))
+    annotations = convert(Vector{String}, split(String(readuntil(io, 0x00)), '\x14'; keepempty=false))
     return TimestampedAnnotationList(onset_in_seconds, duration_in_seconds, annotations)
 end
 

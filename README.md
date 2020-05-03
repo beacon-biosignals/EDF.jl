@@ -11,6 +11,7 @@ Compared to all features implied by the EDF/EDF+ specifications, this package is
 - Out-of-core data record streaming; this package (and its type representations, i.e. `EDF.Signal`) generally assumes the user is loading all of a file's sample data into memory at once.
 - Specialization for discontinuous EDF+ files ("EDF+D" files).
 - Validation/specialization w.r.t. ["canonical/standard EDF texts"](https://www.edfplus.info/specs/edftexts.html)
+- Validation-on-write of manually constructed `EDF.File`s
 - Support for [the EDF+ `longinteger`/`float` extension](https://www.edfplus.info/specs/edffloat.html)
 
 Where practical, this package chooses field names that are as close to EDF/EDF+ specification terminology as possible.

@@ -3,8 +3,6 @@
 #####
 # TODO canonicalized label parsing
 
-const SIGNAL_HEADER_BYTES = (16, 80, 8, 8, 8, 8, 8, 80, 8)
-
 """
     EDF.SignalHeader
 
@@ -62,6 +60,8 @@ function decode(signal::Signal)
     return @. ((signal.samples - dmin) / (dmax - dmin)) * (pmax - pmin) + pmin
 end
 
+SignalHeader(signal::Signal) = signal.header
+
 #####
 ##### `EDF.AnnotationsSignal`
 #####
@@ -107,11 +107,10 @@ function AnnotationsSignal(header::SignalHeader)
     return AnnotationsSignal(header.samples_per_record, records)
 end
 
-# TODO replace with convert methods
-# function SignalHeader(header::AnnotationsSignalHeader)
-#     return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767,
-#                         "", header.samples_per_record)
-# end
+function SignalHeader(signal::AnnotationsSignal)
+    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767,
+                        "", signal.samples_per_record)
+end
 
 #####
 ##### EDF+ Patient/Recording Metadata

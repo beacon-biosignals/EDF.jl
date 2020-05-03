@@ -69,40 +69,6 @@ end
 const ANNOTATIONS_SIGNAL_LABEL = "EDF Annotations"
 
 """
-    EDF.AnnotationsSignalHeader
-
-Type representing the header for a single EDF Annotations signal.
-
-# Fields
-
-* `samples_per_record::Int16`: number of samples in a data record (NOT overall)
-* `original_index::Int`: the original index of the annotations signal in the EDF file's
-  list of signals (this is a "bookkeeping index" for use by EDF.jl, and is not part of
-  the actual EDF/EDF+ specification)
-"""
-struct AnnotationsSignalHeader
-    samples_per_record::Int16
-    original_index::Int
-end
-
-"""
-    EDF.AnnotationsSignal
-
-Type representing a single EDF Annotations signal.
-
-# Fields
-
-* `header::AnnotationsSignalHeader`
-* `records::Vector{Vector{TimestampedAnnotationList}}`
-"""
-struct AnnotationsSignal
-    header::AnnotationsSignalHeader
-    records::Vector{Vector{TimestampedAnnotationList}}
-end
-
-AnnotationsSignal(header::AnnotationsSignalHeader) = AnnotationsSignal(header, Vector{TimestampedAnnotationList}[])
-
-"""
     EDF.TimestampedAnnotationList <: EDF.AbstractAnnotation
 
 A type representing a time-stamped annotations list (TAL).
@@ -119,6 +85,26 @@ struct TimestampedAnnotationList
     onset_in_seconds::Float64
     duration_in_seconds::Union{Float64,Nothing}
     annotations::Vector{String}
+end
+
+"""
+    EDF.AnnotationsSignal
+
+Type representing a single EDF Annotations signal.
+
+# Fields
+
+* `samples_per_record::Int16`
+* `records::Vector{Vector{TimestampedAnnotationList}}`
+"""
+struct AnnotationsSignal
+    samples_per_record::Int16
+    records::Vector{Vector{TimestampedAnnotationList}}
+end
+
+function AnnotationsSignal(header::SignalHeader)
+    records = Vector{TimestampedAnnotationList}[]
+    return AnnotationsSignal(header.samples_per_record, records)
 end
 
 # TODO replace with convert methods
@@ -220,8 +206,7 @@ end
 struct File{I<:IO}
     io::I
     header::FileHeader
-    signals::Vector{Signal}
-    annotations::Union{AnnotationsSignal,Nothing}
+    signals::Vector{Union{Signal,AnnotationsSignal}}
 end
 
 function Base.show(io::IO, edf::File)

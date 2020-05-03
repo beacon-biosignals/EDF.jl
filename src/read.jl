@@ -98,116 +98,53 @@ function read_file_header(io::IO)
     return header, header_byte_count, signal_count
 end
 
-function extract_annotations_signal_header!(headers::Vector{SignalHeader})
-    index = findfirst(header -> header.label == ANNOTATIONS_SIGNAL_LABEL, headers)
-    index === nothing && return nothing
-    annotations_signal_header = AnnotationsSignalHeader(headers[index].samples_per_record, index)
-    deleteat!(headers, index)
-    return annotations_signal_header
-end
-
 #####
 ##### signal reading utilities
 #####
 
 function read_signals!(file::File)
-    for signal in file.signals
-        resize!(signal.samples, file.header.record_count * signal.header.samples_per_record)
+    for record_index in 1:file.header.record_count, signal in file.signals
+        read_signal_record!(file, signal, record_index)
     end
-    if file.annotations === nothing
-        for record in 1:file.header.record_count, signal in file.signals
-            read_signal_record!(file, signal, record)
-        end
-    else
-        buffer = Vector{UInt8}(undef, 2 * file.annotations.header.samples_per_record)
-        for record in 1:file.header.record_count
-            for (index, signal) in enumerate(file.signals)
-                if file.annotations.header.original_index == index
-                    read_annotations_signal_record!(file, buffer, record)
-                end
-                read_signal_record!(file, signal, record)
-            end
-            if file.annotations.header.original_index == lastindex(file.signals) + 1
-                read_annotations_signal_record!(file, buffer, record)
-            end
-        end
-    end
-    @assert eof(file.io)
     return nothing
 end
 
-function read_signal_record!(file::File, signal::Signal, record::Int)
-    record_start = 1 + (record - 1) * signal.header.samples_per_record
-    record_stop = record * signal.header.samples_per_record
+function read_signal_record!(file::File, signal::Signal, record_index::Int)
+    if isempty(signal.samples)
+        resize!(signal.samples, file.header.record_count * signal.header.samples_per_record)
+    end
+    record_start = 1 + (record_index - 1) * signal.header.samples_per_record
+    record_stop = record_index * signal.header.samples_per_record
     Base.read!(file.io, view(signal.samples, record_start:record_stop))
     return nothing
 end
 
-#####
-##### annotation reading utilities
-#####
-
-function read_annotations_signal_record!(file::File, buffer, record::Int)
-    Base.read!(file.io, buffer)
-    tals = TimestampedAnnotationList[]
-    # TODO
-    push!(file.annotations.records, tals)
-    return
+function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
+    io_for_record = IOBuffer(Base.read(file.io, 2 * signal.samples_per_record))
+    tals_for_record = TimestampedAnnotationList[]
+    while !eof(io_for_record) && Base.peek(io_for_record) != 0x0
+        push!(tals_for_record, read_tal(io_for_record))
+    end
+    push!(signal.records, tals_for_record)
+    return nothing
 end
 
-# function read_annotations!(records::Vector{DataRecord}, data::Vector{UInt8}, index::Integer)
-#     record = IOBuffer(data)
-#     annotations = Vector{TimestampAnnotation}()
-#     record_annotation = read_record_annotation(record)
-#     while !eof(record) && Base.peek(record) != 0x0
-#         push!(annotations, read_timestamp_annotation(record))
-#     end
-#     if isempty(annotations)
-#         annotations = nothing
-#     end
-#     push!(records, record_annotation => annotations)
-#     return nothing
-# end
+function read_tal(io::IO)
+    sign = read_tal_onset_sign(io)
+    bytes = readuntil(io, 0x14)
+    timestamp = split(String(bytes), '\x15'; keepempty=false)
+    onset_in_seconds = flipsign(parse(Float64, timestamp[1]), sign)
+    duration_in_seconds = length(timestamp) == 2 ? parse(Float64, timestamp[2]) : nothing
+    annotations = convert(Vector{String}, split(String(readuntil(io, 0x0)), '\x14'; keepempty=false))
+    return TimestampedAnnotationList(onset_in_seconds, duration_in_seconds, annotations)
+end
 
-# function read_record_annotation(io::IO)
-#     sign = read_sign(io)
-#     offset = sign * parse(Float64, String(readuntil(io, 0x14)))
-#     if Base.peek(io) !== 0x0
-#         events = read_events(io)
-#     else
-#         events = nothing
-#         Base.skip(io, 1)
-#     end
-#     return RecordAnnotation(offset, events)
-# end
-
-# function read_timestamp_annotation(io::IO)
-#     sign = read_sign(io)
-#     raw = readuntil(io, 0x14)
-#     timestamp = split(String(raw), '\x15'; keepempty=false)
-#     offset = flipsign(parse(Float64, popfirst!(timestamp)), sign)
-#     if isempty(timestamp)
-#         duration = nothing
-#     else
-#         duration = parse(Float64, popfirst!(timestamp))
-#     end
-#     events = read_events(io)
-#     events !== nothing || error("No events found for timestamp annotation at offset $offset")
-#     return TimestampAnnotation(offset, duration, events)
-# end
-#
-# function read_sign(io::IO)
-#     sign = Base.read(io, UInt8)
-#     sign === 0x2b || sign === 0x2d || error("Starting byte of annotation must be '+' or '-'.")
-#     return sign === 0x2b ? 1 : -1
-# end
-#
-# function read_events(io::IO)
-#     raw = readuntil(io, 0x0)
-#     events = split(String(raw), '\x14'; keepempty=false)
-#     events = convert(Vector{String}, events)
-#     return isempty(events) ? nothing : events
-# end
+function read_tal_onset_sign(io::IO)
+    sign = Base.read(io, UInt8)
+    sign === 0x2b && return 1
+    sign === 0x2d && return -1
+    error("starting byte of a TAL must be '+' or '-'; found $sign")
+end
 
 #####
 ##### API functions
@@ -223,9 +160,15 @@ data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
 """
 function File(io::IO)
     file_header, signal_headers = read_file_and_signal_headers(io)
-    annotations_header = extract_annotations_signal_header!(signal_headers)
-    annotations = annotations_header === nothing ? nothing : AnnotationsSignal(annotations_header)
-    return File(io, file_header, Signal.(signal_headers), annotations)
+    signals = Union{Signal,AnnotationsSignal}[]
+    for header in signal_headers
+        if header.label == ANNOTATIONS_SIGNAL_LABEL
+            push!(signals, AnnotationsSignal(header))
+        else
+            push!(signals, Signal(header))
+        end
+    end
+    return File(io, file_header, signals)
 end
 
 """

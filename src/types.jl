@@ -1,7 +1,16 @@
 #####
 ##### `EDF.Signal`
 #####
-# TODO canonicalized label parsing
+
+const SIGNAL_HEADER_FIELDS = [(:label, 16),
+                              (:transducer_type, 80),
+                              (:physical_dimension, 8),
+                              (:physical_minimum, 8),
+                              (:physical_maximum, 8),
+                              (:digital_minimum, 8),
+                              (:digital_maximum, 8),
+                              (:prefilter, 80),
+                              (:samples_per_record, 8)]
 
 """
     EDF.SignalHeader
@@ -165,7 +174,7 @@ end
 """
     EDF.FileHeader
 
-Type representing file-wide metadata for an EDF `File`.
+Type representing the parsed header record of an `EDF.File` (excluding signal headers).
 
 # Fields
 
@@ -187,21 +196,17 @@ struct FileHeader
     seconds_per_record::Float64
 end
 
-# """
-#     EDF.File{I<:IO}
-#
-# Type representing an EDF file's metadata.
-# To access the sample data for a signal in `signals`
-#
-# # Fields
-#
-# * `io` (`I<:IO`): The IO source for the EDF file.
-# * `header` (`FileHeader`): File-level metadata extracted from the file header
-# * `signals` (`Vector{Pair{SignalHeader,Vector{Int16}}}`): A `Vector` of `Pair`s, where
-#    the first item in each pair contains signal-level metadata for the signal's
-#    samples, and the second item contains the encoded sample values for that signal
-# * `annotations` (`AnnotationList` or `Nothing`): If specified, a list of EDF+ Annotations
-# """
+"""
+    EDF.File{I<:IO}
+
+Type representing an EDF file.
+
+# Fields
+
+* `io::I`
+* `header::FileHeader`
+* `signals::Vector{Union{Signal,AnnotationsSignal}}`
+"""
 struct File{I<:IO}
     io::I
     header::FileHeader

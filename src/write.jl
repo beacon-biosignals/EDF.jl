@@ -2,9 +2,10 @@
 ##### utilities
 #####
 
-_edf_write(io::IO, value::Union{String,Char,Integer}) = Base.write(io, value)
+_edf_write(io::IO, value::Union{String,Char}) = Base.write(io, value)
 _edf_write(io::IO, date::Date) = Base.write(io, uppercase(Dates.format(date, dateformat"dd-u-yyyy")))
 _edf_write(io::IO, date::DateTime) = Base.write(io, Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS"))
+_edf_write(io::IO, x::Integer) = Base.write(io, string(x))
 _edf_write(io::IO, x::AbstractFloat) = Base.write(io, string(isinteger(x) ? trunc(Int, x) : x))
 
 function _edf_write(io::IO, metadata::T) where T<:Union{PatientID,RecordingID}
@@ -50,15 +51,7 @@ function write_header(io::IO, file::File)
     actual_bytes_written += edf_write(io, file.header.seconds_per_record, 8)
     actual_bytes_written += edf_write(io, length(file.signals), 4)
     signal_headers = SignalHeader.(file.signals)
-    for (field_name, byte_limit) in [(:label, 16),
-                                     (:transducer_type, 80),
-                                     (:physical_dimension, 8),
-                                     (:physical_minimum, 8),
-                                     (:physical_maximum, 8),
-                                     (:digital_minimum, 8),
-                                     (:digital_maximum, 8),
-                                     (:prefilter, 8),
-                                     (:samples_per_record, 8)]
+    for (field_name, byte_limit) in SIGNAL_HEADER_FIELDS
         for signal_header in signal_headers
             field = getfield(signal_header, field_name)
             actual_bytes_written += edf_write(io, field, byte_limit)

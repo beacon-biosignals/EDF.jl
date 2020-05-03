@@ -49,7 +49,7 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 
 function read_file_and_signal_headers(io::IO)
     file_header, header_byte_count, signal_count = read_file_header(io)
-    fields = [String(Base.read(io, size)) for signal in 1:signal_count, size in SIGNAL_HEADER_BYTES]
+    fields = [String(Base.read(io, size)) for signal in 1:signal_count, (_, size) in SIGNAL_HEADER_FIELDS]
     signal_headers = [SignalHeader(strip(fields[i,1]), strip(fields[i,2]),
                                    strip(fields[i,3]), parse_float(fields[i,4]),
                                    parse_float(fields[i,5]), parse_float(fields[i,6]),

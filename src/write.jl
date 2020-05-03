@@ -69,7 +69,6 @@ end
 function write_signals(io::IO, file::File)
     bytes_written = 0
     for record_index in 1:file.header.record_count
-        past_first_annotation_signal_in_record = false
         for signal in file.signals
             bytes_written += write_signal_record(io, signal, record_index)
         end

@@ -39,26 +39,25 @@ const BYTES_PER_FILE_HEADER = 256
 const BYTES_PER_SIGNAL_HEADER = 256
 
 function write_header(io::IO, file::File)
-    bytes_written = BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
-    actual_bytes_written = 0
-    actual_bytes_written += edf_write(io, file.header.version, 8)
-    actual_bytes_written += edf_write(io, file.header.patient, 80)
-    actual_bytes_written += edf_write(io, file.header.recording, 80)
-    actual_bytes_written += edf_write(io, file.header.start, 16)
-    actual_bytes_written += edf_write(io, bytes_written, 8)
-    actual_bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44)
-    actual_bytes_written += edf_write(io, file.header.record_count, 8)
-    actual_bytes_written += edf_write(io, file.header.seconds_per_record, 8)
-    actual_bytes_written += edf_write(io, length(file.signals), 4)
+    bytes_written = 0
+    bytes_written += edf_write(io, file.header.version, 8)
+    bytes_written += edf_write(io, file.header.patient, 80)
+    bytes_written += edf_write(io, file.header.recording, 80)
+    bytes_written += edf_write(io, file.header.start, 16)
+    bytes_written += edf_write(io, bytes_written, 8)
+    bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44)
+    bytes_written += edf_write(io, file.header.record_count, 8)
+    bytes_written += edf_write(io, file.header.seconds_per_record, 8)
+    bytes_written += edf_write(io, length(file.signals), 4)
     signal_headers = SignalHeader.(file.signals)
     for (field_name, byte_limit) in SIGNAL_HEADER_FIELDS
         for signal_header in signal_headers
             field = getfield(signal_header, field_name)
-            actual_bytes_written += edf_write(io, field, byte_limit)
+            bytes_written += edf_write(io, field, byte_limit)
         end
     end
-    actual_bytes_written += edf_write(io, ' ', 32 * length(file.signals))
-    @assert actual_bytes_written == bytes_written
+    bytes_written += edf_write(io, ' ', 32 * length(file.signals))
+    @assert bytes_written == BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
     return bytes_written
 end
 

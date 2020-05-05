@@ -1,140 +1,115 @@
 #####
-##### Writing EDFs
+##### utilities
 #####
 
-#####
-##### `write_bytes`
-#####
+_edf_write(io::IO, value::Union{String,Char}) = Base.write(io, value)
+_edf_write(io::IO, date::Date) = Base.write(io, uppercase(Dates.format(date, dateformat"dd-u-yyyy")))
+_edf_write(io::IO, date::DateTime) = Base.write(io, Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS"))
+_edf_write(io::IO, x::Integer) = Base.write(io, string(x))
+_edf_write(io::IO, x::AbstractFloat) = Base.write(io, string(isinteger(x) ? trunc(Int, x) : x))
 
-write_bytes(io::IO, value) = Base.write(io, string(value))
-write_bytes(io::IO, date::Date) = Base.write(io, uppercase(Dates.format(date, dateformat"dd-u-yyyy")))
-write_bytes(io::IO, date::DateTime) = Base.write(io, Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS"))
-write_bytes(io::IO, ::Missing) = Base.write(io, "X")
-write_bytes(io::IO, x::AbstractFloat) = Base.write(io, string(isinteger(x) ? trunc(Int, x) : x))
-write_bytes(io::IO, continuous::Bool) = Base.write(io, continuous ? "EDF+C" : "EDF+D")
-write_bytes(::IO, ::Nothing) = 0
-
-function write_bytes(io::IO, metadata::T) where T<:Union{PatientID,RecordingID}
+function _edf_write(io::IO, metadata::T) where T<:Union{PatientID,RecordingID}
     bytes_written = 0
     for name in fieldnames(T)
         field = getfield(metadata, name)
         if T <: RecordingID && name === :startdate
-            bytes_written += write_bytes(io, "Startdate ")
+            bytes_written += _edf_write(io, "Startdate ")
         end
-        bytes_written += write_bytes(io, field) + Base.write(io, 0x20)
+        bytes_written += field isa Missing ? Base.write(io, 'X') : _edf_write(io, field)
+        bytes_written += Base.write(io, ' ')
     end
     return bytes_written
 end
 
-function write_bytes(io::IO, annotations::T) where {T<:Union{DataRecord, Vector{<:AbstractAnnotation}}}
-    bytes_written = 0
-    for annotation in annotations
-        bytes_written += write_bytes(io, annotation)
-    end
-    return bytes_written
-end
-
-function write_bytes(io::IO, annotation::AbstractAnnotation)
-    bytes_written = Base.write(io, sign(annotation)) +
-                    write_bytes(io, annotation.offset)
-    if has_duration(annotation)
-        bytes_written += Base.write(io, 0x15) +
-                         write_bytes(io, duration(annotation))
-    end
-    bytes_written += Base.write(io, footer(annotation)...)
-    if has_events(annotation)
-        for event in annotation.events
-            bytes_written += Base.write(io, event, 0x14)
-        end
-    end
-    bytes_written += Base.write(io, 0x0)
-    return bytes_written
-end
-
-sign(annotation::AbstractAnnotation) = annotation.offset >= 0 ? '+' : '-'
-
-has_duration(annotation::RecordAnnotation) = false
-has_duration(annotation::TimestampAnnotation) = annotation.duration !== nothing
-
-duration(annotation::RecordAnnotation) = nothing
-duration(annotation::TimestampAnnotation) = annotation.duration
-
-footer(annotation::RecordAnnotation) = (0x14, 0x14)
-footer(annotation::TimestampAnnotation) = 0x14
-
-has_events(annotation::RecordAnnotation) = annotation.events !== nothing
-has_events(annotation::TimestampAnnotation) = true
-
-function write_padded(io::IO, value, byte_limit::Integer; pad::UInt8=0x20)
-    bytes_written = write_bytes(io, value)
+function edf_write(io::IO, value, byte_limit::Integer)
+    bytes_written = _edf_write(io, value)
     bytes_written <= byte_limit || error("Written value $value contains more bytes than limit $byte_limit")
     while bytes_written < byte_limit
-        bytes_written += Base.write(io, pad)
+        bytes_written += Base.write(io, UInt8(' '))
     end
     return bytes_written
 end
+
+#####
+##### `write_header`
+#####
 
 function write_header(io::IO, file::File)
-    has_annotations = file.annotations !== nothing
-    signal_count = length(file.signals) + has_annotations
-    bytes_written = write_file_header(io, file.header, signal_count) +
-                    write_signal_headers(io, file, has_annotations)
-    reserved_bytes = 32 * signal_count
-    bytes_written += write_padded(io, 0x20, reserved_bytes)
+    bytes_written = 0
+    bytes_written += edf_write(io, file.header.version, 8)
+    bytes_written += edf_write(io, file.header.patient, 80)
+    bytes_written += edf_write(io, file.header.recording, 80)
+    bytes_written += edf_write(io, file.header.start, 16)
+    bytes_written += edf_write(io, bytes_written, 8)
+    bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44)
+    bytes_written += edf_write(io, file.header.record_count, 8)
+    bytes_written += edf_write(io, file.header.seconds_per_record, 8)
+    bytes_written += edf_write(io, length(file.signals), 4)
+    signal_headers = SignalHeader.(file.signals)
+    for (field_name, byte_limit) in SIGNAL_HEADER_FIELDS
+        for signal_header in signal_headers
+            field = getfield(signal_header, field_name)
+            bytes_written += edf_write(io, field, byte_limit)
+        end
+    end
+    bytes_written += edf_write(io, ' ', 32 * length(file.signals))
+    @assert bytes_written == BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
     return bytes_written
 end
 
-function write_file_header(io::IO, header::FileHeader, signal_count::Integer)
-    total_header_bytes = 256 * (signal_count + 1)
-    return write_padded(io, header.version, 8) +
-           write_padded(io, header.patient, 80) +
-           write_padded(io, header.recording, 80) +
-           write_padded(io, header.start, 16) +
-           write_padded(io, total_header_bytes, 8) +
-           write_padded(io, header.continuous, 44) +
-           write_padded(io, header.n_records, 8) +
-           write_padded(io, header.duration, 8) +
-           write_padded(io, signal_count, 4)
-end
+#####
+##### `write_signals`
+#####
 
-function write_signal_headers(io::IO, file::File, has_annotations::Bool)
+function write_signals(io::IO, file::File)
     bytes_written = 0
-    for (field, padding) in zip(1:fieldcount(SignalHeader), SIGNAL_HEADER_BYTES)
+    for record_index in 1:file.header.record_count
         for signal in file.signals
-            header = first(signal)
-            bytes_written += write_padded(io, getfield(header, field), padding)
-        end
-        if has_annotations
-            header = EDF.SignalHeader(file.annotations.header)
-            bytes_written += write_padded(io, getfield(header, field), padding)
+            bytes_written += write_signal_record(io, signal, record_index)
         end
     end
     return bytes_written
 end
 
-function write_data(io::IO, file::File)
+function write_signal_record(io::IO, signal::Signal, record_index::Int)
+    record_start = 1 + (record_index - 1) * signal.header.samples_per_record
+    record_stop = record_index * signal.header.samples_per_record
+    record_stop = min(record_stop, length(signal.samples))
+    return Base.write(io, view(signal.samples, record_start:record_stop))
+end
+
+function write_signal_record(io::IO, signal::AnnotationsSignal, record_index::Int)
     bytes_written = 0
-    max_bytes = file.annotations.header.n_samples * 2
-    for record_index in 1:file.header.n_records
-        for (signal, samples) in file.signals
-            sample_count = signal.n_samples
-            start = (record_index - 1) * sample_count
-            stop = min(start + sample_count, length(samples))
-            bytes_written += Base.write(io, view(samples, (start + 1):stop))
+    for tal in signal.records[record_index]
+        bytes_written += Base.write(io, signbit(tal.onset_in_seconds) ? '-' : '+')
+        bytes_written += _edf_write(io, tal.onset_in_seconds)
+        if tal.duration_in_seconds !== nothing
+            bytes_written += Base.write(io, 0x15)
+            bytes_written += _edf_write(io, tal.duration_in_seconds)
         end
-        if file.annotations !== nothing
-            bytes_written += write_padded(io, file.annotations.records[record_index], max_bytes; pad=0x0)
+        bytes_written += Base.write(io, 0x14)
+        for annotation in tal.annotations
+            bytes_written += Base.write(io, annotation)
+            bytes_written += Base.write(io, 0x14)
         end
+        bytes_written += Base.write(io, 0x00)
+    end
+    bytes_per_record = 2 * signal.samples_per_record
+    while bytes_written < bytes_per_record
+        bytes_written += Base.write(io, 0x00)
     end
     return bytes_written
 end
 
-"""
-    EDF.write(io::IO, edf::EDF.File)
-    EDF.write(path::AbstractString, edf::EDF.File)
+#####
+##### API functions
+#####
 
-Write the given `EDF.File` object to the given stream or file and return the number of
-bytes written.
 """
-write(io::IO, file::File) = write_header(io, file) + write_data(io, file)
-write(path::AbstractString, edf::File) = Base.open(io -> write(io, edf), path, "w")
+    EDF.write(io::IO, file::EDF.File)
+    EDF.write(path::AbstractString, file::EDF.File)
+
+Write `file` to the given output, returning the number of bytes written.
+"""
+write(io::IO, file::File) = write_header(io, file) + write_signals(io, file)
+write(path::AbstractString, file::File) = Base.open(io -> write(io, file), path, "w")

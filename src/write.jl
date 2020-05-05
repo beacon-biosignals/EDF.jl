@@ -22,7 +22,7 @@ function _edf_repr(x::Real)
         fpart_str = @sprintf "%.7f" abs(fpart)
         fpart_str = fpart_str[3:end] # remove leading `0.`
         if length(ipart_str) < 7
-            result = ipart_str * '.' * fpart_str[1:(8 - length(ipart_str))]
+            result = ipart_str * '.' * fpart_str[1:(7 - length(ipart_str))]
         elseif length(ipart_str) <= 8
             result = ipart_str
         end

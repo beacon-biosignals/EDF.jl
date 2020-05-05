@@ -7,7 +7,8 @@ _edf_repr(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
 _edf_repr(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
 _edf_repr(x::Integer) = string(x)
 _edf_repr(x::AbstractFloat) = string(isinteger(x) ? trunc(Int, x) : x)
-_edf_repr(::Missing) = 'X'
+_edf_metadata_repr(::Missing) = 'X'
+_edf_metadata_repr(x) = _edf_repr(x)
 
 function _edf_repr(metadata::T) where T<:Union{PatientID,RecordingID}
     header = T <: RecordingID ? String["Startdate"] : String[]

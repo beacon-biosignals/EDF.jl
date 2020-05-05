@@ -7,29 +7,28 @@ _edf_repr(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
 _edf_repr(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
 
 function _edf_repr(x::Real)
-    if 0 < abs(x) <= 6e-8
-        error("EDF.jl does not yet support writing numbers where `0 < abs(x) <= 6e-8`: $x")
-    end
+    result = missing
     if isinteger(x)
         str = string(trunc(Int, x))
-        length(str) <= 8 && return str
+        if length(str) <= 8
+            result = str
+        end
     else
         fpart, ipart = modf(x)
-        ipart_str = string(Int(ipart))
-        fpart_str = @sprintf "%.7f" fpart
-        if (fpart < 0 || ipart < 0)
-            if !startswith(ipart_str, '-')  # add leading `-`, if missing
-                ipart_str = '-' * ipart_str
-            end
-            if startswith(fpart_str, '-') # remove leading `-`, if present
-                fpart_str = fpart_str[2:end]
-            end
-        end
+        ipart_str = string('-'^signbit(x), Int(ipart))
+        fpart_str = @sprintf "%.7f" abs(fpart)
         fpart_str = fpart_str[3:end] # remove leading `0.`
         if length(ipart_str) < 7
-            return ipart_str * '.' * fpart_str[1:(8 - length(ipart_str))]
+            result = ipart_str * '.' * fpart_str[1:(8 - length(ipart_str))]
         elseif length(ipart_str) <= 8
-            return ipart_str
+            result = ipart_str
+        end
+    end
+    if !ismissing(result)
+        if all(c -> c in ('0', '.', '-'), result)
+            x == 0 && return result
+        else
+            return result
         end
     end
     error("failed to fit number into EDF's 8 ASCII character limit: $x")

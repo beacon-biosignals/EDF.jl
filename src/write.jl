@@ -6,6 +6,9 @@ _edf_repr(value::Union{String,Char}) = value
 _edf_repr(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
 _edf_repr(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
 
+# XXX this is really really hacky and doesn't support use of scientific notation
+# where appropriate; keep in mind if you do improve this to support scientific
+# notation, that scientific is NOT allowed in EDF annotation onset/duration fields
 function _edf_repr(x::Real)
     result = missing
     if isinteger(x)

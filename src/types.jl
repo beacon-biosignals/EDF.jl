@@ -96,6 +96,12 @@ struct TimestampedAnnotationList
     annotations::Vector{String}
 end
 
+function Base.:(==)(a::TimestampedAnnotationList, b::TimestampedAnnotationList)
+    return a.onset_in_seconds == b.onset_in_seconds &&
+           a.duration_in_seconds == b.duration_in_seconds &&
+           a.annotations == b.annotations
+end
+
 """
     EDF.AnnotationsSignal
 
@@ -170,6 +176,10 @@ end
 #####
 ##### `EDF.File`
 #####
+
+const BYTES_PER_FILE_HEADER = 256
+
+const BYTES_PER_SIGNAL_HEADER = 256
 
 """
     EDF.FileHeader

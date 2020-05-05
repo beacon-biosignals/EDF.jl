@@ -1,5 +1,6 @@
 using EDF
-using EDF: AnnotationList, PatientID, RecordAnnotation, TimestampAnnotation, RecordingID, SignalHeader
+using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
+           Signal, AnnotationsSignal
 using Dates
 using Test
 
@@ -38,65 +39,58 @@ deep_equal(a::T, b::S) where {T,S} = false
 const DATADIR = joinpath(@__DIR__, "data")
 
 @testset "Just Do It" begin
+    # test EDF.read(::AbstractString)
     edf = EDF.read(joinpath(DATADIR, "test.edf"))
-    @test sprint(show, edf) == "EDF.File with 139 signals"
+    @test sprint(show, edf) == "EDF.File with 140 signals"
     @test edf.header.version == "0"
     @test edf.header.patient == PatientID(missing, missing, missing, missing)
     @test edf.header.recording == RecordingID(Date(2014, 4, 29), missing, missing, missing)
-    @test edf.header.continuous
+    @test edf.header.is_contiguous
     @test edf.header.start == DateTime(2014, 4, 29, 22, 19, 44)
-    @test edf.header.n_records == 6
-    @test edf.header.duration == 1.0
-    @test edf.signals isa Vector{Pair{SignalHeader,Vector{Int16}}}
-    @test length(edf.signals) == 139
-    for (signal, samples) in edf.signals
-        @test length(samples) == signal.n_samples * edf.header.n_records
+    @test edf.header.record_count == 6
+    @test edf.header.seconds_per_record == 1.0
+    @test edf.signals isa Vector{Union{Signal,AnnotationsSignal}}
+    @test length(edf.signals) == 140
+    for signal in edf.signals
+        if signal isa EDF.Signal
+            @test length(signal.samples) == signal.header.samples_per_record * edf.header.record_count
+        else
+            @test length(signal.records) == edf.header.record_count
+            # XXX seems like this test file actual doesn't contain onset timestamps that make sense;
+            # according to the EDF+ specification, the onsets should be relative to the start time of
+            # the entire file, but it seems like whoever wrote these onsets might have used values
+            # that were relative to the start of the surrounding data record.
+            expected = [[TimestampedAnnotationList(0.0, nothing, String[]), TimestampedAnnotationList(0.0, nothing, ["start"])],
+                        [TimestampedAnnotationList(1.0, nothing, String[]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
+                        [TimestampedAnnotationList(2.0, nothing, String[]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
+                        [TimestampedAnnotationList(3.0, nothing, String[]), TimestampedAnnotationList(2.0, nothing, ["type B"])],
+                        [TimestampedAnnotationList(4.0, nothing, String[]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
+                        [TimestampedAnnotationList(5.0, nothing, String[])]]
+            @test all(signal.records .== expected)
+        end
     end
-    expected = [
-        (RecordAnnotation(0.0, nothing) => [TimestampAnnotation(0.0, nothing, ["start"])]),
-        (RecordAnnotation(1.0, nothing) => [TimestampAnnotation(0.1344, 0.256, ["type A"])]),
-        (RecordAnnotation(2.0, nothing) => [TimestampAnnotation(0.3904, 1.0, ["type A"])]),
-        (RecordAnnotation(3.0, nothing) => [TimestampAnnotation(2.0, nothing, ["type B"])]),
-        (RecordAnnotation(4.0, nothing) => [TimestampAnnotation(2.5, 2.5, ["type A"])]),
-        (RecordAnnotation(5.0, nothing) => nothing),
-    ]
-    @test deep_equal(edf.annotations.records, expected)
 
+    # test EDF.write(::IO, ::EDF.File)
     io = IOBuffer()
-    nb = EDF.write_header(io, edf)
-    has_annotations = edf.annotations !== nothing
-    @test nb == 256 * (length(edf.signals) + has_annotations + 1)
-    EDF.write_data(io, edf)
+    EDF.write(io, edf)
     seekstart(io)
-    file_header, signal_headers = EDF.read_file_and_signal_headers(io)
-    @test deep_equal(edf.header, file_header)
-    annotations = EDF.extract_annotation_header!(signal_headers)
-    signals = [header => Vector{Int16}() for header in signal_headers]
-    EDF.read_signals!(EDF.File(io, file_header, signals, annotations))
+    file = EDF.File(io)
+    @test deep_equal(edf.header, file.header)
+    @test all(isempty(s isa Signal ? s.samples : s.records) for s in file.signals)
+    EDF.read!(file)
+    @test deep_equal(edf.signals, file.signals)
     @test eof(io)
-    @test deep_equal(edf.signals, signals)
-    @test deep_equal(edf.annotations, annotations)
 
+    # test EDF.write(::AbstractString, ::EDF.File)
     mktempdir() do dir
-        file = joinpath(dir, "test2.edf")
-        EDF.write(file, edf)
-        edf2 = EDF.read(file)
-        @test deep_equal(edf, edf2)
-        edf3 = EDF.File(open(file, "r"))
-        @test !eof(edf3.io)
-        @test isopen(edf3.io)
-        @test edf.header == edf3.header
-        for (signal_1, signal_2) in zip(edf.signals, edf3.signals)
-            @test first(signal_1) == first(signal_2)
-        end
-        for (signal, samples) in edf3.signals
-            @test isempty(samples)
-        end
-        @test edf.annotations.header == edf.annotations.header
-        EDF.read!(edf3)
-        @test !isopen(edf.io)
-        @test eof(edf3.io)
-        @test deep_equal(edf3, edf)
+        path = joinpath(dir, "tmp.edf")
+        EDF.write(path, edf)
+        file = EDF.File(open(path, "r"))
+        @test deep_equal(edf.header, file.header)
+        @test all(isempty(s isa Signal ? s.samples : s.records) for s in file.signals)
+        EDF.read!(file)
+        @test deep_equal(edf.signals, file.signals)
+        @test eof(io)
     end
 
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
@@ -104,21 +98,19 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test uneven.header.version == "0"
     @test uneven.header.patient == "A 3Hz sinewave and a 0.2Hz block signal, both starting in their positive phase"
     @test uneven.header.recording == "110 seconds from 13-JUL-2000 12.05.48hr."
-    @test uneven.header.continuous
+    @test uneven.header.is_contiguous
     @test uneven.header.start == DateTime(2000, 7, 13, 12, 5, 48)
-    @test uneven.header.n_records == 11
-    @test uneven.header.duration == 10.0
-    @test uneven.signals[1].first.n_samples != uneven.signals[2].first.n_samples
-    @test uneven.annotations === nothing
+    @test uneven.header.record_count == 11
+    @test uneven.header.seconds_per_record == 10.0
+    @test uneven.signals[1].header.samples_per_record != uneven.signals[2].header.samples_per_record
     @test length(uneven.signals) == 2
 
     nonint = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
-    s = first(nonint.signals)
-    h = first(s)
-    @test h.physical_min ≈ -29483.1f0
-    @test h.physical_max ≈ 29483.12f0
-    @test h.digital_min ≈ -32767.0f0
-    @test h.digital_max ≈ 32767.0f0
+    signal = nonint.signals[1]
+    @test signal.header.physical_minimum ≈ -29483.1f0
+    @test signal.header.physical_maximum ≈ 29483.12f0
+    @test signal.header.digital_minimum ≈ -32767.0f0
+    @test signal.header.digital_maximum ≈ 32767.0f0
 
     # Python code for generating the comparison values used here:
     # ```
@@ -130,7 +122,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     #         f.write("%s\n" % x)
     # ```
     mne = map(line->parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
-    for (a, b) in zip(EDF.decode(s), mne)
+    for (a, b) in zip(EDF.decode(signal), mne)
         @test a ≈ b atol=0.01
     end
 end

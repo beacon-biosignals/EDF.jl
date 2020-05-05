@@ -34,10 +34,6 @@ end
 ##### `write_header`
 #####
 
-const BYTES_PER_FILE_HEADER = 256
-
-const BYTES_PER_SIGNAL_HEADER = 256
-
 function write_header(io::IO, file::File)
     bytes_written = 0
     bytes_written += edf_write(io, file.header.version, 8)

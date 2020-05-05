@@ -47,20 +47,6 @@ edf_unknown(field::AbstractString) = edf_unknown(identity, field)
 ##### header reading utilities
 #####
 
-function read_file_and_signal_headers(io::IO)
-    file_header, header_byte_count, signal_count = read_file_header(io)
-    fields = [String(Base.read(io, size)) for signal in 1:signal_count, (_, size) in SIGNAL_HEADER_FIELDS]
-    signal_headers = [SignalHeader(strip(fields[i,1]), strip(fields[i,2]),
-                                   strip(fields[i,3]), parse_float(fields[i,4]),
-                                   parse_float(fields[i,5]), parse_float(fields[i,6]),
-                                   parse_float(fields[i,7]), strip(fields[i,8]),
-                                   parse(Int16, fields[i,9])) for i in 1:size(fields, 1)]
-    skip(io, 32 * signal_count) # Reserved
-    position(io) == header_byte_count || error("Incorrect number of bytes in the header. " *
-                                               "Expected $header_byte_count but was $(position(io))")
-    return file_header, signal_headers
-end
-
 function read_file_header(io::IO)
     version = strip(String(Base.read(io, 8)))
 
@@ -86,16 +72,33 @@ function read_file_header(io::IO)
     # we ignore the above entirely and use `recording_id.startdate`. We could add a
     # check here on `year(today())`, but that will be dead code for the next 60+ years.
 
-    header_byte_count = parse(Int, String(Base.read(io, 8)))
+    # NOTE: These 8 bytes are supposed to define the byte count of the header,
+    # which in reality is trivially computable from constants defined by the
+    # specification + directly available information in the header already. I'm
+    # not sure why the EDF standard requires that it be written out at all; AFAICT
+    # it only serves as a potential bug source for readers/writers that might write
+    # the incorrect value here. Since we don't actually use this value anywhere in
+    # our read/write process, we skip it here.
+    Base.read(io, 8)
+
     reserved = String(Base.read(io, 44))
     is_contiguous = !startswith(reserved, "EDF+D")
     record_count = parse(Int, String(Base.read(io, 8)))
     seconds_per_record = parse(Float64, String(Base.read(io, 8)))
     signal_count = parse(Int, String(Base.read(io, 4)))
+    return FileHeader(version, patient_id, recording_id, start, is_contiguous,
+                      record_count, seconds_per_record), signal_count
+end
 
-    header = FileHeader(version, patient_id, recording_id, start, is_contiguous,
-                        record_count, seconds_per_record)
-    return header, header_byte_count, signal_count
+function read_signal_headers(io::IO, signal_count)
+    fields = [String(Base.read(io, size)) for signal in 1:signal_count, (_, size) in SIGNAL_HEADER_FIELDS]
+    signal_headers = [SignalHeader(strip(fields[i, 1]), strip(fields[i, 2]),
+                                   strip(fields[i, 3]), parse_float(fields[i, 4]),
+                                   parse_float(fields[i, 5]), parse_float(fields[i, 6]),
+                                   parse_float(fields[i, 7]), strip(fields[i, 8]),
+                                   parse(Int16, fields[i, 9])) for i in 1:size(fields, 1)]
+    skip(io, 32 * signal_count) # reserved
+    return signal_headers
 end
 
 #####
@@ -159,9 +162,9 @@ only reads headers, not the subsequent sample data; to read the subsequent sampl
 data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
 """
 function File(io::IO)
-    file_header, signal_headers = read_file_and_signal_headers(io)
+    file_header, signal_count = read_file_header(io)
     signals = Union{Signal,AnnotationsSignal}[]
-    for header in signal_headers
+    for header in read_signal_headers(io, signal_count)
         if header.label == ANNOTATIONS_SIGNAL_LABEL
             push!(signals, AnnotationsSignal(header))
         else

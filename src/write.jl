@@ -5,8 +5,36 @@
 _edf_repr(value::Union{String,Char}) = value
 _edf_repr(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
 _edf_repr(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
-_edf_repr(x::Integer) = string(x)
-_edf_repr(x::AbstractFloat) = string(isinteger(x) ? trunc(Int, x) : x)
+
+function _edf_repr(x::Real)
+    if 0 < abs(x) <= 6e-8
+        error("EDF.jl does not yet support writing numbers where `0 < abs(x) <= 6e-8`: $x")
+    end
+    if isinteger(x)
+        str = string(trunc(Int, x))
+        length(str) <= 8 && return str
+    else
+        fpart, ipart = modf(x)
+        ipart_str = string(Int(ipart))
+        fpart_str = @sprintf "%.7f" fpart
+        if (fpart < 0 || ipart < 0)
+            if !startswith(ipart_str, '-')  # add leading `-`, if missing
+                ipart_str = '-' * ipart_str
+            end
+            if startswith(fpart_str, '-') # remove leading `-`, if present
+                fpart_str = fpart_str[2:end]
+            end
+        end
+        fpart_str = fpart_str[3:end] # remove leading `0.`
+        if length(ipart_str) < 7
+            return ipart_str * '.' * fpart_str[1:(8 - length(ipart_str))]
+        elseif length(ipart_str) <= 8
+            return ipart_str
+        end
+    end
+    error("failed to fit number into EDF's 8 ASCII character limit: $x")
+end
+
 _edf_metadata_repr(::Missing) = 'X'
 _edf_metadata_repr(x) = _edf_repr(x)
 
@@ -15,17 +43,10 @@ function _edf_repr(metadata::T) where T<:Union{PatientID,RecordingID}
     return join([header; [_edf_metadata_repr(getfield(metadata, name)) for name in fieldnames(T)]], ' ')
 end
 
-function edf_write(io::IO, value, byte_limit::Integer; truncate::Bool=true)
+function edf_write(io::IO, value, byte_limit::Integer)
     edf_value = _edf_repr(value)
     @assert isascii(edf_value)
     size = length(edf_value)
-    if size > byte_limit
-        if truncate
-            edf_value = chop(edf_value; head=0, tail=(size - byte_limit))
-        else
-            error("$value is $(sizeof(edf_value)) bytes. The byte limit for this value is $byte_limit")
-        end
-    end
     bytes_written = Base.write(io, edf_value)
     while bytes_written < byte_limit
         bytes_written += Base.write(io, UInt8(' '))
@@ -37,25 +58,26 @@ end
 ##### `write_header`
 #####
 
-function write_header(io::IO, file::File; kwargs...)
+function write_header(io::IO, file::File)
+    length(file.signals) <= 9999 || error("EDF does not allow files with more than 9999 signals")
     bytes_written = 0
-    bytes_written += edf_write(io, file.header.version, 8; kwargs...)
-    bytes_written += edf_write(io, file.header.patient, 80; kwargs...)
-    bytes_written += edf_write(io, file.header.recording, 80; kwargs...)
-    bytes_written += edf_write(io, file.header.start, 16; kwargs...)
-    bytes_written += edf_write(io, bytes_written, 8; kwargs...)
-    bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44; kwargs...)
-    bytes_written += edf_write(io, file.header.record_count, 8; kwargs...)
-    bytes_written += edf_write(io, file.header.seconds_per_record, 8; kwargs...)
-    bytes_written += edf_write(io, length(file.signals), 4; kwargs...)
+    bytes_written += edf_write(io, file.header.version, 8)
+    bytes_written += edf_write(io, file.header.patient, 80)
+    bytes_written += edf_write(io, file.header.recording, 80)
+    bytes_written += edf_write(io, file.header.start, 16)
+    bytes_written += edf_write(io, bytes_written, 8)
+    bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44)
+    bytes_written += edf_write(io, file.header.record_count, 8)
+    bytes_written += edf_write(io, file.header.seconds_per_record, 8)
+    bytes_written += edf_write(io, length(file.signals), 4)
     signal_headers = SignalHeader.(file.signals)
     for (field_name, byte_limit) in SIGNAL_HEADER_FIELDS
         for signal_header in signal_headers
             field = getfield(signal_header, field_name)
-            bytes_written += edf_write(io, field, byte_limit; kwargs...)
+            bytes_written += edf_write(io, field, byte_limit)
         end
     end
-    bytes_written += edf_write(io, ' ', 32 * length(file.signals); kwargs...)
+    bytes_written += edf_write(io, ' ', 32 * length(file.signals))
     @assert bytes_written == BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
     return bytes_written
 end
@@ -84,7 +106,9 @@ end
 function write_signal_record(io::IO, signal::AnnotationsSignal, record_index::Int)
     bytes_written = 0
     for tal in signal.records[record_index]
-        bytes_written += Base.write(io, signbit(tal.onset_in_seconds) ? '-' : '+')
+        if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
+            bytes_written += Base.write(io, '+')
+        end
         bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
         if tal.duration_in_seconds !== nothing
             bytes_written += Base.write(io, 0x15)
@@ -109,15 +133,10 @@ end
 #####
 
 """
-    EDF.write(io::IO, file::EDF.File; truncate::Bool=true)
-    EDF.write(path::AbstractString, file::EDF.File; truncate::Bool=true)
+    EDF.write(io::IO, file::EDF.File)
+    EDF.write(path::AbstractString, file::EDF.File)
 
 Write `file` to the given output, returning the number of bytes written.
-If `truncate` is `true`, truncate trailing characters of values in `file`
-that have a larger number of bytes than specified for the value given by
-the EDF specification. Otherwise, throw an error if `file` contains any
-fields with an EDF representation larger than the EDF specification for
-that field.
 """
-write(io::IO, file::File; truncate::Bool=true) = write_header(io, file; truncate=truncate) + write_signals(io, file)
-write(path::AbstractString, file::File; truncate::Bool=true) = Base.open(io -> write(io, file; truncate=truncate), path, "w")
+write(io::IO, file::File) = write_header(io, file) + write_signals(io, file)
+write(path::AbstractString, file::File) = Base.open(io -> write(io, file), path, "w")

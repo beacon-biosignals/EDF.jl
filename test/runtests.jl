@@ -93,6 +93,11 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
+    buf = IOBuffer()
+    EDF.edf_write(buf, -4.49576549f0, 8)
+    @test String(take!(buf)) == "-4.49576"
+    @test_throws ErrorException EDF.edf_write(buf, -4.49576549f0, 8; truncate=false)
+
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
     @test sprint(show, uneven) == "EDF.File with 2 signals"
     @test uneven.header.version == "0"

@@ -15,7 +15,7 @@ function _edf_repr(x::Real)
         end
     else
         fpart, ipart = modf(x)
-        ipart_str = string('-'^signbit(x), Int(ipart))
+        ipart_str = string('-'^signbit(x), Int(abs(ipart)))
         fpart_str = @sprintf "%.7f" abs(fpart)
         fpart_str = fpart_str[3:end] # remove leading `0.`
         if length(ipart_str) < 7

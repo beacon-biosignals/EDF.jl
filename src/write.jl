@@ -48,7 +48,7 @@ end
 function edf_write(io::IO, value, byte_limit::Integer)
     edf_value = _edf_repr(value)
     @assert isascii(edf_value)
-    size = length(edf_value)
+    sizeof(edf_value) > byte_limit && error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: $value")
     bytes_written = Base.write(io, edf_value)
     while bytes_written < byte_limit
         bytes_written += Base.write(io, UInt8(' '))
@@ -62,12 +62,13 @@ end
 
 function write_header(io::IO, file::File)
     length(file.signals) <= 9999 || error("EDF does not allow files with more than 9999 signals")
+    expected_bytes_written = BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
     bytes_written = 0
     bytes_written += edf_write(io, file.header.version, 8)
     bytes_written += edf_write(io, file.header.patient, 80)
     bytes_written += edf_write(io, file.header.recording, 80)
     bytes_written += edf_write(io, file.header.start, 16)
-    bytes_written += edf_write(io, bytes_written, 8)
+    bytes_written += edf_write(io, expected_bytes_written, 8)
     bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44)
     bytes_written += edf_write(io, file.header.record_count, 8)
     bytes_written += edf_write(io, file.header.seconds_per_record, 8)
@@ -80,7 +81,7 @@ function write_header(io::IO, file::File)
         end
     end
     bytes_written += edf_write(io, ' ', 32 * length(file.signals))
-    @assert bytes_written == BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
+    @assert bytes_written == expected_bytes_written
     return bytes_written
 end
 

@@ -17,7 +17,7 @@ end
 
 function edf_write(io::IO, value, byte_limit::Integer; truncate::Bool=true)
     edf_value = _edf_repr(value)
-    @assert isascii(string(edf_value))
+    @assert isascii(edf_value)
     size = length(edf_value)
     if size > byte_limit
         if truncate

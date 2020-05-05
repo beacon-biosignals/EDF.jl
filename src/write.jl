@@ -12,7 +12,7 @@ _edf_metadata_repr(x) = _edf_repr(x)
 
 function _edf_repr(metadata::T) where T<:Union{PatientID,RecordingID}
     header = T <: RecordingID ? String["Startdate"] : String[]
-    return join([header; [_edf_repr(getfield(metadata, name)) for name in fieldnames(T)]], ' ')
+    return join([header; [_edf_metadata_repr(getfield(metadata, name)) for name in fieldnames(T)]], ' ')
 end
 
 function edf_write(io::IO, value, byte_limit::Integer; truncate::Bool=true)

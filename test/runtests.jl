@@ -93,6 +93,14 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
+    @test EDF._edf_repr(34577777) == "34577777"
+    @test EDF._edf_repr(0.0345) == "0.034500"
+    @test EDF._edf_repr(-0.02) == "-0.02000"
+    @test EDF._edf_repr(-187.74445) == "-187.744"
+    @test_throws ErrorException EDF._edf_repr(123456789)
+    @test_throws ErrorException EDF._edf_repr(-12345678)
+    @test_throws ErrorException EDF._edf_repr(0.00000000024)
+
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
     @test sprint(show, uneven) == "EDF.File with 2 signals"
     @test uneven.header.version == "0"

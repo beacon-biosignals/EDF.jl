@@ -1,10 +1,11 @@
 name = "EDF"
 uuid = "ccffbfc1-f56e-50fb-a33b-53d1781b2825"
 authors = ["Beacon Biosignals, Inc."]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 julia = "1.4"

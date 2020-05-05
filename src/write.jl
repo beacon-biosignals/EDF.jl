@@ -21,11 +21,11 @@ function _edf_write(io::IO, metadata::T) where T<:Union{PatientID,RecordingID}
     return bytes_written
 end
 
-function edf_write(io::IO, value, byte_limit::Integer; pad::UInt8=UInt8(' '))
+function edf_write(io::IO, value, byte_limit::Integer)
     bytes_written = _edf_write(io, value)
     bytes_written <= byte_limit || error("Written value $value contains more bytes than limit $byte_limit")
     while bytes_written < byte_limit
-        bytes_written += Base.write(io, pad)
+        bytes_written += Base.write(io, UInt8(' '))
     end
     return bytes_written
 end

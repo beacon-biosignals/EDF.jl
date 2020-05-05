@@ -56,10 +56,10 @@ const DATADIR = joinpath(@__DIR__, "data")
             @test length(signal.samples) == signal.header.samples_per_record * edf.header.record_count
         else
             @test length(signal.records) == edf.header.record_count
-            # XXX seems like this test file actual doesn't contain onset timestamps that make sense;
-            # according to the EDF+ specification, the onsets should be relative to the start time of
+            # XXX seems like this test file actually contains nonsensical onset timestamps...
+            # according to the EDF+ specification, onsets should be relative to the start time of
             # the entire file, but it seems like whoever wrote these onsets might have used values
-            # that were relative to the start of the surrounding data record.
+            # that were relative to the start of the surrounding data record
             expected = [[TimestampedAnnotationList(0.0, nothing, String[]), TimestampedAnnotationList(0.0, nothing, ["start"])],
                         [TimestampedAnnotationList(1.0, nothing, String[]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
                         [TimestampedAnnotationList(2.0, nothing, String[]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],

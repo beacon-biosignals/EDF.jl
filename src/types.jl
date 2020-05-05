@@ -78,7 +78,7 @@ SignalHeader(signal::Signal) = signal.header
 const ANNOTATIONS_SIGNAL_LABEL = "EDF Annotations"
 
 """
-    EDF.TimestampedAnnotationList <: EDF.AbstractAnnotation
+    EDF.TimestampedAnnotationList
 
 A type representing a time-stamped annotations list (TAL).
 

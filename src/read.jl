@@ -79,7 +79,7 @@ function read_file_header(io::IO)
     # it only serves as a potential bug source for readers/writers that might write
     # the incorrect value here. Since we don't actually use this value anywhere in
     # our read/write process, we skip it here.
-    Base.read(io, 8)
+    skip(io, 8)
 
     reserved = String(Base.read(io, 44))
     is_contiguous = !startswith(reserved, "EDF+D")

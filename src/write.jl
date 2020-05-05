@@ -17,7 +17,7 @@ function _edf_repr(x::Real)
         fpart, ipart = modf(x)
         ipart_str = string(Int(ipart))
         fpart_str = @sprintf "%.7f" fpart
-        if (fpart < 0 || ipart < 0)
+        if fpart < 0 || ipart < 0
             if !startswith(ipart_str, '-')  # add leading `-`, if missing
                 ipart_str = '-' * ipart_str
             end

@@ -28,6 +28,39 @@ function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
     return RecordingID(startdate, admincode, technician, equipment)
 end
 
+# EDF does not specify what to do if the month or day is not in a valid range
+# so if it is not we snap month or day to "01" and try again
+function parse_fix_header_date(st::AbstractString)
+    df = dateformat"dd\.mm\.yy HH\.MM\.SS"
+
+    dt = tryparse(DateTime, st, df)
+    isnothing(dt) || return dt
+
+    month = st[4:5]
+    if startswith(month, "-")
+        throw(ArgumentError("Chars other than [0-9.] are not allowed in header date \"$st\""))
+    end
+
+    # set month to "01" if not in 1..12
+    if parse(Int, month) ∉ 1:12
+        st = "$(st[1:3])01$(st[6:end])"
+    end
+
+    try
+        return DateTime(st, df)
+    catch e
+        if isa(e, ArgumentError)
+            message = sprint(showerror, e)
+
+            # set day to "01" if not valid for that month / (leap?) year
+            if occursin("Day: ", message) && occursin("", message)
+                return DateTime("01$(st[3:end])", df)
+            end
+        end
+        rethrow(e)
+    end
+end
+
 parse_float(raw::AbstractString) = something(tryparse(Float32, raw), NaN32)
 
 parse_date(raw::AbstractString) = tryparse(Date, raw, dateformat"d-u-y")
@@ -60,7 +93,7 @@ function read_file_header(io::IO)
     push!(start_raw, UInt8(' '))
     append!(start_raw, Base.read(io, 8))  # Add the time
     # Parsing the date per the given format will validate EDF+ item 2
-    start = DateTime(String(start_raw), dateformat"dd\.mm\.yy HH\.MM\.SS")
+    start = parse_fix_header_date(String(start_raw))
 
     if year(start) <= 84  # 1985 is used as a clipping date
         start += Year(2000)

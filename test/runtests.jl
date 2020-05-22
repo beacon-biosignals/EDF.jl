@@ -108,7 +108,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test uneven.header.patient == "A 3Hz sinewave and a 0.2Hz block signal, both starting in their positive phase"
     @test uneven.header.recording == "110 seconds from 13-JUL-2000 12.05.48hr."
     @test uneven.header.is_contiguous
-    @test uneven.header.start == DateTime(2000, 7, 13, 12, 5, 48)
+    @test uneven.header.start == DateTime(2000, 1, 31, 23, 0, 59)
     @test uneven.header.record_count == 11
     @test uneven.header.seconds_per_record == 10.0
     @test uneven.signals[1].header.samples_per_record != uneven.signals[2].header.samples_per_record

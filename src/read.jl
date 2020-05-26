@@ -28,6 +28,33 @@ function Base.tryparse(::Type{RecordingID}, raw::AbstractString)
     return RecordingID(startdate, admincode, technician, equipment)
 end
 
+# EDF does not specify what to do if the month or day is not in a valid range
+# so if it is not we snap month or day to "01" and try again
+function parse_header_date(date_str::AbstractString)
+    m = match(r"^(\d{2})\.(\d{2})\.(\d{2}) (\d{2})\.(\d{2})\.(\d{2})$", date_str)
+    if m === nothing
+        throw(ArgumentError("Malformed date string: expected 'dd.mm.yy HH.MM.SS', " *
+                            "got '$date_str'"))
+    end
+    day, month, year, hour, minute, second = parse.(Int, m.captures)
+    if year <= 84
+        year += 2000
+    else
+        year += 1900
+    end
+
+    # FIXME: EDF "avoids" the Y2K problem by punting it to the year 2084, after which
+    # we ignore the above entirely and use `recording_id.startdate`. We could add a
+    # check here on `year(today())`, but that will be dead code for the next 60+ years.
+
+    month = clamp(month, 1, 12)
+    day = clamp(day, 1, daysinmonth(year, month))
+    hour = clamp(hour, 0, 23)
+    minute = clamp(minute, 0, 59)
+    second = clamp(second, 0, 59)
+    return DateTime(year, month, day, hour, minute, second)
+end
+
 parse_float(raw::AbstractString) = something(tryparse(Float32, raw), NaN32)
 
 parse_date(raw::AbstractString) = tryparse(Date, raw, dateformat"d-u-y")
@@ -60,17 +87,7 @@ function read_file_header(io::IO)
     push!(start_raw, UInt8(' '))
     append!(start_raw, Base.read(io, 8))  # Add the time
     # Parsing the date per the given format will validate EDF+ item 2
-    start = DateTime(String(start_raw), dateformat"dd\.mm\.yy HH\.MM\.SS")
-
-    if year(start) <= 84  # 1985 is used as a clipping date
-        start += Year(2000)
-    else
-        start += Year(1900)
-    end
-
-    # FIXME: EDF "avoids" the Y2K problem by punting it to the year 2084, after which
-    # we ignore the above entirely and use `recording_id.startdate`. We could add a
-    # check here on `year(today())`, but that will be dead code for the next 60+ years.
+    start = parse_header_date(String(start_raw))
 
     # NOTE: These 8 bytes are supposed to define the byte count of the header,
     # which in reality is trivially computable from constants defined by the

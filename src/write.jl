@@ -153,7 +153,7 @@ function write(io::IO, file::File)
                   `file.header.is_contiguous` is `false` but `file.signals` does not contain
                   an `AnnotationsSignal`; this is required as per the EDF+ specification for
                   noncontiguous files in order to specify the start time of each data record
-                  (see section 2.2.4) for details.
+                  (see section 2.2.4 for details).
                   """
         throw(ArgumentError(message))
     end

@@ -109,25 +109,31 @@ end
 function write_signal_record(io::IO, signal::AnnotationsSignal, record_index::Int)
     bytes_written = 0
     for tal in signal.records[record_index]
-        if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
-            bytes_written += Base.write(io, '+')
-        end
-        bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
-        if tal.duration_in_seconds !== nothing
-            bytes_written += Base.write(io, 0x15)
-            bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
-        end
-        bytes_written += Base.write(io, 0x14)
-        for annotation in tal.annotations
-            bytes_written += Base.write(io, annotation)
-            bytes_written += Base.write(io, 0x14)
-        end
-        bytes_written += Base.write(io, 0x00)
+        bytes_written += write_tal(io, tal)
     end
     bytes_per_record = 2 * signal.samples_per_record
     while bytes_written < bytes_per_record
         bytes_written += Base.write(io, 0x00)
     end
+    return bytes_written
+end
+
+function write_tal(io::IO, tal::TimestampedAnnotationList)
+    bytes_written = 0
+    if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
+        bytes_written += Base.write(io, '+')
+    end
+    bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
+    if tal.duration_in_seconds !== nothing
+        bytes_written += Base.write(io, 0x15)
+        bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
+    end
+    bytes_written += Base.write(io, 0x14)
+    for annotation in tal.annotations
+        bytes_written += Base.write(io, annotation)
+        bytes_written += Base.write(io, 0x14)
+    end
+    bytes_written += Base.write(io, 0x00)
     return bytes_written
 end
 

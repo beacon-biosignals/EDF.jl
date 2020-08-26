@@ -122,6 +122,25 @@ function AnnotationsSignal(header::SignalHeader)
     return AnnotationsSignal(header.samples_per_record, records)
 end
 
+"""
+    AnnotationsSignal(records::Vector{Vector{TimestampedAnnotationList}})
+
+Return `AnnotationsSignal(samples_per_record, records)` where `samples_per_record`
+is the minimum value required to write out each record completely (i.e. the maximum
+required `samples_per_record` across all records).
+"""
+function AnnotationsSignal(records::Vector{Vector{TimestampedAnnotationList}})
+    # Actually writing out the TALs in order to calculate the minimum necessary
+    # `samples_per_record` is super wasteful from a performance perspective, but
+    # is at least robust/self-consistent with the rest of the package. In theory
+    # we shouldn't even store this value, and rather always compute it on write,
+    # but cleanly refactoring the package to do this would be a more involved
+    # change than is meritted at the moment (since normal signals are already
+    # treated similarly, i.e. the `SignalHeader` is overly trusted).
+    max_bytes_per_record = maximum(sum(write_tal(IOBuffer(), tal) for tal in record) for record in records)
+    return AnnotationsSignal(Int16(cld(max_bytes_per_record, 2)), records)
+end
+
 function SignalHeader(signal::AnnotationsSignal)
     return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767,
                         "", signal.samples_per_record)

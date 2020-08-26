@@ -141,5 +141,17 @@ end
 
 Write `file` to the given output, returning the number of bytes written.
 """
-write(io::IO, file::File) = write_header(io, file) + write_signals(io, file)
+function write(io::IO, file::File)
+    if !file.header.is_contiguous && !any(s -> s isa AnnotationsSignal, file.signals)
+        message = """
+                  `file.header.is_contiguous` is `false` but `file.signals` does not contain
+                  an `AnnotationsSignal`; this is required as per the EDF+ specification for
+                  noncontiguous files in order to specify the start time of each data record
+                  (see section 2.2.4) for details.
+                  """
+        throw(ArgumentError(message))
+    end
+    return write_header(io, file) + write_signals(io, file)
+end
+
 write(path::AbstractString, file::File) = Base.open(io -> write(io, file), path, "w")

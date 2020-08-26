@@ -109,25 +109,31 @@ end
 function write_signal_record(io::IO, signal::AnnotationsSignal, record_index::Int)
     bytes_written = 0
     for tal in signal.records[record_index]
-        if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
-            bytes_written += Base.write(io, '+')
-        end
-        bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
-        if tal.duration_in_seconds !== nothing
-            bytes_written += Base.write(io, 0x15)
-            bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
-        end
-        bytes_written += Base.write(io, 0x14)
-        for annotation in tal.annotations
-            bytes_written += Base.write(io, annotation)
-            bytes_written += Base.write(io, 0x14)
-        end
-        bytes_written += Base.write(io, 0x00)
+        bytes_written += write_tal(io, tal)
     end
     bytes_per_record = 2 * signal.samples_per_record
     while bytes_written < bytes_per_record
         bytes_written += Base.write(io, 0x00)
     end
+    return bytes_written
+end
+
+function write_tal(io::IO, tal::TimestampedAnnotationList)
+    bytes_written = 0
+    if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
+        bytes_written += Base.write(io, '+')
+    end
+    bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
+    if tal.duration_in_seconds !== nothing
+        bytes_written += Base.write(io, 0x15)
+        bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
+    end
+    bytes_written += Base.write(io, 0x14)
+    for annotation in tal.annotations
+        bytes_written += Base.write(io, annotation)
+        bytes_written += Base.write(io, 0x14)
+    end
+    bytes_written += Base.write(io, 0x00)
     return bytes_written
 end
 
@@ -141,5 +147,17 @@ end
 
 Write `file` to the given output, returning the number of bytes written.
 """
-write(io::IO, file::File) = write_header(io, file) + write_signals(io, file)
+function write(io::IO, file::File)
+    if !file.header.is_contiguous && !any(s -> s isa AnnotationsSignal, file.signals)
+        message = """
+                  `file.header.is_contiguous` is `false` but `file.signals` does not contain
+                  an `AnnotationsSignal`; this is required as per the EDF+ specification for
+                  noncontiguous files in order to specify the start time of each data record
+                  (see section 2.2.4 for details).
+                  """
+        throw(ArgumentError(message))
+    end
+    return write_header(io, file) + write_signals(io, file)
+end
+
 write(path::AbstractString, file::File) = Base.open(io -> write(io, file), path, "w")

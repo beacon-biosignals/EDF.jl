@@ -67,6 +67,7 @@ const DATADIR = joinpath(@__DIR__, "data")
                         [TimestampedAnnotationList(4.0, nothing, String[]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
                         [TimestampedAnnotationList(5.0, nothing, String[])]]
             @test all(signal.records .== expected)
+            @test AnnotationsSignal(signal.records).samples_per_record == 16
         end
     end
 
@@ -80,6 +81,19 @@ const DATADIR = joinpath(@__DIR__, "data")
     EDF.read!(file)
     @test deep_equal(edf.signals, file.signals)
     @test eof(io)
+
+    # test that EDF.write(::IO, ::EDF.File) errors if file is
+    # discontiguous w/o an AnnotationsSignal present
+    bad_file = EDF.File(IOBuffer(),
+                        EDF.FileHeader(file.header.version,
+                                       file.header.patient,
+                                       file.header.recording,
+                                       file.header.start,
+                                       false, # is_contiguous
+                                       file.header.record_count,
+                                       file.header.seconds_per_record),
+                        filter(s -> !(s isa AnnotationsSignal), file.signals))
+    @test_throws ArgumentError EDF.write(IOBuffer(), bad_file)
 
     # test EDF.write(::AbstractString, ::EDF.File)
     mktempdir() do dir

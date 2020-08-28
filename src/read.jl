@@ -155,7 +155,8 @@ function read_tal(io::IO)
     timestamp = split(String(bytes), '\x15'; keepempty=false)
     onset_in_seconds = flipsign(parse(Float64, timestamp[1]), sign)
     duration_in_seconds = length(timestamp) == 2 ? parse(Float64, timestamp[2]) : nothing
-    annotations = convert(Vector{String}, split(String(readuntil(io, 0x00)), '\x14'; keepempty=false))
+    annotations = convert(Vector{String}, split(String(readuntil(io, 0x00)), '\x14'; keepempty=true))
+    isempty(last(annotations)) && pop!(annotations)
     return TimestampedAnnotationList(onset_in_seconds, duration_in_seconds, annotations)
 end
 

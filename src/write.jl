@@ -128,10 +128,15 @@ function write_tal(io::IO, tal::TimestampedAnnotationList)
         bytes_written += Base.write(io, 0x15)
         bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
     end
-    bytes_written += Base.write(io, 0x14)
-    for annotation in tal.annotations
-        bytes_written += Base.write(io, annotation)
+    if isempty(tal.annotations)
         bytes_written += Base.write(io, 0x14)
+        bytes_written += Base.write(io, 0x14)
+    else
+        for annotation in tal.annotations
+            bytes_written += Base.write(io, 0x14)
+            bytes_written += Base.write(io, annotation)
+            bytes_written += Base.write(io, 0x14)
+        end
     end
     bytes_written += Base.write(io, 0x00)
     return bytes_written

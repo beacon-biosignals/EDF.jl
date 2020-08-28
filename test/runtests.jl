@@ -60,12 +60,12 @@ const DATADIR = joinpath(@__DIR__, "data")
             # according to the EDF+ specification, onsets should be relative to the start time of
             # the entire file, but it seems like whoever wrote these onsets might have used values
             # that were relative to the start of the surrounding data record
-            expected = [[TimestampedAnnotationList(0.0, nothing, String[]), TimestampedAnnotationList(0.0, nothing, ["start"])],
-                        [TimestampedAnnotationList(1.0, nothing, String[]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
-                        [TimestampedAnnotationList(2.0, nothing, String[]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
-                        [TimestampedAnnotationList(3.0, nothing, String[]), TimestampedAnnotationList(2.0, nothing, ["type B"])],
-                        [TimestampedAnnotationList(4.0, nothing, String[]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
-                        [TimestampedAnnotationList(5.0, nothing, String[])]]
+            expected = [[TimestampedAnnotationList(0.0, nothing, String[""]), TimestampedAnnotationList(0.0, nothing, ["start"])],
+                        [TimestampedAnnotationList(1.0, nothing, String[""]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
+                        [TimestampedAnnotationList(2.0, nothing, String[""]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
+                        [TimestampedAnnotationList(3.0, nothing, String[""]), TimestampedAnnotationList(2.0, nothing, ["type B"])],
+                        [TimestampedAnnotationList(4.0, nothing, String[""]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
+                        [TimestampedAnnotationList(5.0, nothing, String[""])]]
             @test all(signal.records .== expected)
             @test AnnotationsSignal(signal.records).samples_per_record == 16
         end

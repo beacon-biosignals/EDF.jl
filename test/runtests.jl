@@ -107,6 +107,13 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) == "-0.00234"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(0.0023405432)) == "0.002340"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1.002343)) == "1.002343"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1011.05432)) == "1011.054"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1011.05432)) == "-1011.05"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.5)) == "-1013442"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.3)) == "-1013441"
     @test EDF._edf_repr(34577777) == "34577777"
     @test EDF._edf_repr(0.0345) == "0.034500"
     @test EDF._edf_repr(-0.02) == "-0.02000"

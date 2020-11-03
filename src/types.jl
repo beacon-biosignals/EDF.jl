@@ -108,7 +108,7 @@ struct TimestampedAnnotationList
 end
 
 function _nearest_representable_edf_time_value(x)
-    return round(x, digits=(8 - (ndigits(floor(Int, x)) + signbit(x) + isinteger(x))))
+    return round(x; digits=(8 - (ndigits(floor(Int, x)) + signbit(x) + isinteger(x))))
 end
 
 function Base.:(==)(a::TimestampedAnnotationList, b::TimestampedAnnotationList)

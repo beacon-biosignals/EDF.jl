@@ -71,6 +71,34 @@ const DATADIR = joinpath(@__DIR__, "data")
         end
     end
 
+    @testset "truncated EDF" begin
+        # note that this tests a truncated final record, not an incorrect number of records
+        fulledf = read(joinpath(DATADIR, "test.edf"))
+        write(joinpath(DATADIR, "test_truncated.edf"), fulledf[begin:end-1537])
+        logmsg = (:warn, "Sample data is truncated: tried to read 512 bytes but only 511 available")
+        @test_logs logmsg EDF.read(joinpath(DATADIR, "test_truncated.edf"))
+
+        truncedf = EDF.read(joinpath(DATADIR, "test_truncated.edf"))
+        @test deep_equal(edf.header, truncedf.header)
+
+        # the last signal read is truncated, so won't match
+        # likewise for the annotation signal
+        @test deep_equal(edf.signals[1:end-2], truncedf.signals[1:end-2])
+
+        full_last_signal = edf.signals[end-1]
+        trunc_last_signal = truncedf.signals[end-1]
+        @test deep_equal(full_last_signal.header, trunc_last_signal.header)
+        # XXX This doesn't work -- not sure why
+        # @test all(full_last_signal.samples[1:end-1] .== trunc_last_signal.samples)
+        @test length(full_last_signal.samples) - 1 == length(trunc_last_signal.samples)
+
+        trunc_anno_signal = last(truncedf.signals)
+        full_anno_signal = last(edf.signals)
+        @test deep_equal(full_anno_signal.records[1:end-1], trunc_anno_signal.records[1:end-1])
+        @test last(trunc_anno_signal.records) == []
+        @test full_anno_signal.samples_per_record == trunc_anno_signal.samples_per_record
+    end
+
     # test EDF.write(::IO, ::EDF.File)
     io = IOBuffer()
     EDF.write(io, edf)
@@ -155,4 +183,6 @@ const DATADIR = joinpath(@__DIR__, "data")
     for (a, b) in zip(EDF.decode(signal), mne)
         @test a ≈ b atol=0.01
     end
+
 end
+

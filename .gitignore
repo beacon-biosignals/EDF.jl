@@ -5,3 +5,4 @@
 *.DS_Store
 Manifest.toml
 docs/build/
+test/data/test_truncated.edf

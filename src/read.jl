@@ -135,18 +135,7 @@ function read_signal_record!(file::File, signal::Signal, record_index::Int)
     end
     record_start = 1 + (record_index - 1) * signal.header.samples_per_record
     record_stop = record_index * signal.header.samples_per_record
-    bytes_left = file.size - position(file.io)
-    to_read = record_stop - record_start + 1
-    if to_read >= bytes_left
-        bytes_left == 0 && return nothing
-        @warn "Sample data is truncated: tried to read $to_read bytes but only $bytes_left available"
-        bytes = readavailable(file.io)
-        record_stop = record_start + bytes_left - 1
-        copyto!(view(signal.samples, record_start:record_stop), bytes)
-        resize!(signal.samples, record_stop)
-    else
-        Base.read!(file.io, view(signal.samples, record_start:record_stop))
-    end
+    Base.read!(file.io, view(signal.samples, record_start:record_stop))
     return nothing
 end
 
@@ -200,14 +189,36 @@ function File(io::IO)
             push!(signals, Signal(header))
         end
     end
-    return File(io, file_header, signals, _size(io))
+    file_size = _size(io)
+    if file_size > 0
+        bytes_left = file_size - position(io)
+        total_expected_samples = sum(signals) do signal
+            if signal isa Signal
+                return signal.header.samples_per_record
+            else
+                return signal.samples_per_record
+            end
+        end
+        readable_records = div(div(bytes_left, 2), total_expected_samples)
+        if file_header.record_count > readable_records
+            @warn("Number of data records in file header does not match file size. " *
+                  "Skipping $(file_header.record_count - readable_records) truncated " *
+                  "data record(s).")
+            file_header = FileHeader(file_header.version,
+                                     file_header.patient,
+                                     file_header.recording,
+                                     file_header.start,
+                                     file_header.is_contiguous,
+                                     readable_records,
+                                     file_header.seconds_per_record)
+        end
+    end
+    return File(io, file_header, signals)
 end
-
-File(io, header, signals) = File(io, header, signals, _size(io))
 
 _size(io::IOStream) = filesize(io)
 _size(io::IOBuffer) = io.size
-_size(::IO) = typemax(Int)
+_size(::IO) = -1  # type-stable unknown
 
 """
     EDF.read!(file::File)

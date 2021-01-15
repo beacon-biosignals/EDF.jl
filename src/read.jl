@@ -135,7 +135,18 @@ function read_signal_record!(file::File, signal::Signal, record_index::Int)
     end
     record_start = 1 + (record_index - 1) * signal.header.samples_per_record
     record_stop = record_index * signal.header.samples_per_record
-    Base.read!(file.io, view(signal.samples, record_start:record_stop))
+    bytes_left = file.size - position(file.io)
+    to_read = record_stop - record_start + 1
+    if to_read >= bytes_left
+        bytes_left == 0 && return nothing
+        @warn "Sample data is truncated: tried to read $to_read bytes but only $bytes_left available"
+        bytes = readavailable(file.io)
+        record_stop = record_start + bytes_left - 1
+        copyto!(view(signal.samples, record_start:record_stop), bytes)
+        resize!(signal.samples, record_stop)
+    else
+        Base.read!(file.io, view(signal.samples, record_start:record_stop))
+    end
     return nothing
 end
 
@@ -189,8 +200,14 @@ function File(io::IO)
             push!(signals, Signal(header))
         end
     end
-    return File(io, file_header, signals)
+    return File(io, file_header, signals, _size(io))
 end
+
+File(io, header, signals) = File(io, header, signals, _size(io))
+
+_size(io::IOStream) = filesize(io)
+_size(io::IOBuffer) = io.size
+_size(::IO) = typemax(Int)
 
 """
     EDF.read!(file::File)

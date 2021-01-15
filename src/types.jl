@@ -252,11 +252,13 @@ Type representing an EDF file.
 * `io::I`
 * `header::FileHeader`
 * `signals::Vector{Union{Signal,AnnotationsSignal}}`
+* `size::Int`
 """
 struct File{I<:IO}
     io::I
     header::FileHeader
     signals::Vector{Union{Signal,AnnotationsSignal}}
+    size::Int
 end
 
 function Base.show(io::IO, edf::File)

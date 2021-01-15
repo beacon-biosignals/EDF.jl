@@ -189,8 +189,36 @@ function File(io::IO)
             push!(signals, Signal(header))
         end
     end
+    file_size = _size(io)
+    if file_size > 0
+        bytes_left = file_size - position(io)
+        total_expected_samples = sum(signals) do signal
+            if signal isa Signal
+                return signal.header.samples_per_record
+            else
+                return signal.samples_per_record
+            end
+        end
+        readable_records = div(div(bytes_left, 2), total_expected_samples)
+        if file_header.record_count > readable_records
+            @warn("Number of data records in file header does not match file size. " *
+                  "Skipping $(file_header.record_count - readable_records) truncated " *
+                  "data record(s).")
+            file_header = FileHeader(file_header.version,
+                                     file_header.patient,
+                                     file_header.recording,
+                                     file_header.start,
+                                     file_header.is_contiguous,
+                                     readable_records,
+                                     file_header.seconds_per_record)
+        end
+    end
     return File(io, file_header, signals)
 end
+
+_size(io::IOStream) = filesize(io)
+_size(io::IOBuffer) = io.size
+_size(::IO) = -1  # type-stable unknown
 
 """
     EDF.read!(file::File)

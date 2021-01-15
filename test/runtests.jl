@@ -155,4 +155,39 @@ const DATADIR = joinpath(@__DIR__, "data")
     for (a, b) in zip(EDF.decode(signal), mne)
         @test a ≈ b atol=0.01
     end
+
+    # Truncated files
+    mktempdir() do dir
+        # note that this tests a truncated final record, not an incorrect number of records
+        full_edf_bytes = read(joinpath(DATADIR, "test.edf"))
+        write(joinpath(dir, "test_truncated.edf"), full_edf_bytes[1:(end - 1)])
+        @test_logs((:warn, "Number of data records in file header does not match " *
+                    "file size. Skipping 1 truncated data record(s)."),
+                   EDF.read(joinpath(dir, "test_truncated.edf")))
+        truncated_edf = EDF.read(joinpath(dir, "test_truncated.edf"))
+        for field in fieldnames(EDF.FileHeader)
+            a = getfield(edf.header, field)
+            b = getfield(truncated_edf.header, field)
+            if field === :record_count
+                @test b == a - 1
+            else
+                @test a == b
+            end
+        end
+        for i in 1:length(edf.signals)
+            good = edf.signals[i]
+            bad = truncated_edf.signals[i]
+            if good isa EDF.Signal
+                @test deep_equal(good.header, bad.header)
+                @test good.samples[1:(end - good.header.samples_per_record)] == bad.samples
+            else
+                @test good.samples_per_record == bad.samples_per_record
+            end
+        end
+        @test deep_equal(edf.signals[end].records[1:(edf.header.record_count - 1)],
+                         truncated_edf.signals[end].records)
+    end
+
+    @test EDF._size(IOBuffer("memes")) == 5
+    @test EDF._size(Base.DevNull()) == -1
 end

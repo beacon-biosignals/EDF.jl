@@ -187,4 +187,8 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test deep_equal(edf.signals[end].records[1:(edf.header.record_count - 1)],
                          truncated_edf.signals[end].records)
     end
+
+    @test EDF._size(edf.io) == 896256
+    @test EDF._size(IOBuffer("memes")) == 5
+    @test EDF._size(Base.DevNull()) == -1
 end

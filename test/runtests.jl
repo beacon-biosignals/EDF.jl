@@ -81,6 +81,10 @@ const DATADIR = joinpath(@__DIR__, "data")
     EDF.read!(file)
     @test deep_equal(edf.signals, file.signals)
     @test eof(io)
+    # ensure that multiple `EDF.read!` calls don't error and have no effect by
+    # simply rerunning the exact same test as above
+    EDF.read!(file)
+    @test deep_equal(edf.signals, file.signals)
 
     # test that EDF.write(::IO, ::EDF.File) errors if file is
     # discontiguous w/o an AnnotationsSignal present

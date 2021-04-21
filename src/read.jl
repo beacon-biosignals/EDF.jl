@@ -227,7 +227,7 @@ Read all EDF sample and annotation data from `file.io` into `file.signals` and
 `file.annotations`, returning `file`. If `eof(file.io)`, return `file` unmodified.
 """
 function read!(file::File)
-    (isopen(file.io) || !eof(file.io)) && read_signals!(file)
+    isopen(file.io) && !eof(file.io) && read_signals!(file)
     return file
 end
 

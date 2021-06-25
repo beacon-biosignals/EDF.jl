@@ -1,3 +1,8 @@
+BitIntegers.@define_integers 24
+
+const EDF_SAMPLE_TYPE = Int16
+const BDF_SAMPLE_TYPE = Int24
+
 #####
 ##### `EDF.Signal`
 #####
@@ -42,21 +47,22 @@ struct SignalHeader
 end
 
 """
-    EDF.Signal
+    EDF.Signal{T}
 
-Type representing a single EDF signal.
+Type representing a single EDF signal with sample type `T`.
 
 # Fields
 
 * `header::SignalHeader`
-* `samples::Vector{Int16}`
+* `samples::Vector{T}`
 """
-struct Signal
+struct Signal{T}
     header::SignalHeader
-    samples::Vector{Int16}
+    samples::Vector{T}
 end
 
-Signal(header::SignalHeader) = Signal(header, Int16[])
+Signal{T}(header::SignalHeader) where {T} = Signal(header, T[])
+Signal(header::SignalHeader) = Signal{EDF_SAMPLE_TYPE}(header)
 
 """
     EDF.decode(signal::Signal)

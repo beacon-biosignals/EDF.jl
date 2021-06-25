@@ -47,13 +47,28 @@ end
 
 function edf_write(io::IO, value, byte_limit::Integer)
     edf_value = _edf_repr(value)
-    @assert isascii(edf_value)
     sizeof(edf_value) > byte_limit && error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: $value")
     bytes_written = Base.write(io, edf_value)
     while bytes_written < byte_limit
         bytes_written += Base.write(io, UInt8(' '))
     end
     return bytes_written
+end
+
+# NOTE: The fast-path in `Base.write` that uses `unsafe_write` will include alignment
+# padding bytes, which is fine for `Int16` but causes `Int24` to write an extra byte
+# for each value. To get around this, we'll fall back to a naive implementation when
+# the size of the element type doesn't match its aligned size. (See also `read_to!`)
+function write_from(io::IO, x::AbstractArray{T}) where {T}
+    if sizeof(T) == Base.aligned_sizeof(T)
+        return Base.write(io, x)
+    else
+        n = 0
+        for xi in x
+            n += Base.write(io, xi)
+        end
+        return n
+    end
 end
 
 #####
@@ -103,7 +118,7 @@ function write_signal_record(io::IO, signal::Signal, record_index::Int)
     record_start = 1 + (record_index - 1) * signal.header.samples_per_record
     record_stop = record_index * signal.header.samples_per_record
     record_stop = min(record_stop, length(signal.samples))
-    return Base.write(io, view(signal.samples, record_start:record_stop))
+    return write_from(io, view(signal.samples, record_start:record_stop))
 end
 
 function write_signal_record(io::IO, signal::AnnotationsSignal, record_index::Int)

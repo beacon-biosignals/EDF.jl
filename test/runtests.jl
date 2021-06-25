@@ -194,4 +194,24 @@ const DATADIR = joinpath(@__DIR__, "data")
 
     @test EDF._size(IOBuffer("memes")) == 5
     @test EDF._size(Base.DevNull()) == -1
+
+    @testset "BDF Files" begin
+        # The corresponding EDF file was exported by 3rd party software based on the BDF,
+        # so some differences are inevitable, but we just want to check that the values
+        # are Close Enough™.
+        bdf = EDF.read(joinpath(DATADIR, "bdf_test.bdf"))
+        comp = EDF.read(joinpath(DATADIR, "bdf_test.edf"))
+        for i in 1:8
+            bdf_values = EDF.decode(bdf.signals[i])
+            comp_values = EDF.decode(comp.signals[i])
+            @test bdf_values ≈ comp_values rtol=0.01
+        end
+        # Ensure that BDF files can also be round-tripped
+        mktempdir() do dir
+            path = joinpath(dir, "tmp.bdf")
+            EDF.write(path, bdf)
+            file = EDF.read(path)
+            @test deep_equal(bdf, file)
+        end
+    end
 end

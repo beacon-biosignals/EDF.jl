@@ -1,6 +1,6 @@
 module EDF
 
-using Dates, Printf
+using BitIntegers, Dates, Printf
 
 include("types.jl")
 include("read.jl")

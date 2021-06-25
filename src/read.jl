@@ -122,6 +122,22 @@ end
 ##### signal reading utilities
 #####
 
+# NOTE: The fast-path in `Base.read!` that uses `unsafe_read` will read too much when
+# the element type is `Int24`, since it will try to include the alignment padding for
+# each value read and will thus read too much. To get around this, we'll fall back to
+# a naive implementation when the size of the element type doesn't match its aligned
+# size. (See also `write_from`)
+function read_to!(io::IO, x::AbstractArray{T}) where {T}
+    if sizeof(T) == Base.aligned_sizeof(T)
+        Base.read!(io, x)
+    else
+        @inbounds for i in eachindex(x)
+            x[i] = Base.read(io, T)
+        end
+    end
+    return x
+end
+
 function read_signals!(file::File)
     for record_index in 1:file.header.record_count, signal in file.signals
         read_signal_record!(file, signal, record_index)
@@ -135,12 +151,13 @@ function read_signal_record!(file::File, signal::Signal, record_index::Int)
     end
     record_start = 1 + (record_index - 1) * signal.header.samples_per_record
     record_stop = record_index * signal.header.samples_per_record
-    Base.read!(file.io, view(signal.samples, record_start:record_stop))
+    read_to!(file.io, view(signal.samples, record_start:record_stop))
     return nothing
 end
 
 function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
-    io_for_record = IOBuffer(Base.read(file.io, 2 * signal.samples_per_record))
+    bytes_per_sample = sizeof(_sample_type(file))
+    io_for_record = IOBuffer(Base.read(file.io, bytes_per_sample * signal.samples_per_record))
     tals_for_record = TimestampedAnnotationList[]
     while !eof(io_for_record) && Base.peek(io_for_record) != 0x00
         push!(tals_for_record, read_tal(io_for_record))
@@ -181,12 +198,13 @@ data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
 """
 function File(io::IO)
     file_header, signal_count = read_file_header(io)
+    T = _sample_type(file_header)
     signals = Union{Signal,AnnotationsSignal}[]
     for header in read_signal_headers(io, signal_count)
         if header.label == ANNOTATIONS_SIGNAL_LABEL
             push!(signals, AnnotationsSignal(header))
         else
-            push!(signals, Signal(header))
+            push!(signals, Signal{T}(header, T[]))
         end
     end
     file_size = _size(io)
@@ -219,6 +237,11 @@ end
 _size(io::IOStream) = filesize(io)
 _size(io::IOBuffer) = io.size
 _size(::IO) = -1  # type-stable unknown
+
+_is_bdf(file::File) = _is_bdf(file.header)
+_is_bdf(header::FileHeader) = header.version == "\xffBIOSEMI"
+
+_sample_type(file_or_header) = _is_bdf(file_or_header) ? BDF_SAMPLE_TYPE : EDF_SAMPLE_TYPE
 
 """
     EDF.read!(file::File)

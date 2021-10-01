@@ -156,7 +156,7 @@ function read_signal_record!(file::File, signal::Signal, record_index::Int)
 end
 
 function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
-    bytes_per_sample = sizeof(_sample_type(file))
+    bytes_per_sample = sizeof(sample_type(file))
     io_for_record = IOBuffer(Base.read(file.io, bytes_per_sample * signal.samples_per_record))
     tals_for_record = TimestampedAnnotationList[]
     while !eof(io_for_record) && Base.peek(io_for_record) != 0x00
@@ -198,8 +198,8 @@ data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
 """
 function File(io::IO)
     file_header, signal_count = read_file_header(io)
-    T = _sample_type(file_header)
-    signals = Union{Signal,AnnotationsSignal}[]
+    T = sample_type(file_header)
+    signals = Union{Signal{T},AnnotationsSignal}[]
     for header in read_signal_headers(io, signal_count)
         if header.label == ANNOTATIONS_SIGNAL_LABEL
             push!(signals, AnnotationsSignal(header))
@@ -238,10 +238,21 @@ _size(io::IOStream) = filesize(io)
 _size(io::IOBuffer) = io.size
 _size(::IO) = -1  # type-stable unknown
 
-_is_bdf(file::File) = _is_bdf(file.header)
-_is_bdf(header::FileHeader) = header.version == "\xffBIOSEMI"
+"""
+    EDF.is_bdf(file)
 
-_sample_type(file_or_header) = _is_bdf(file_or_header) ? BDF_SAMPLE_TYPE : EDF_SAMPLE_TYPE
+Return `true` if `file` is a BDF (BioSemi Data Format) file, otherwise `false`.
+"""
+is_bdf(file::File) = is_bdf(file.header)
+is_bdf(header::FileHeader) = header.version == "\xffBIOSEMI"
+
+"""
+    EDF.sample_type(file::EDF.File{T})
+
+Return the encoded type `T` of the samples stored in `file`.
+"""
+sample_type(file::File{T}) where {T} = T
+sample_type(header::FileHeader) = is_bdf(header) ? BDF_SAMPLE_TYPE : EDF_SAMPLE_TYPE
 
 """
     EDF.read!(file::File)

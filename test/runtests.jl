@@ -41,7 +41,7 @@ const DATADIR = joinpath(@__DIR__, "data")
 @testset "Just Do It" begin
     # test EDF.read(::AbstractString)
     edf = EDF.read(joinpath(DATADIR, "test.edf"))
-    @test sprint(show, edf) == "EDF.File with 140 signals"
+    @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"
     @test edf.header.version == "0"
     @test edf.header.patient == PatientID(missing, missing, missing, missing)
     @test edf.header.recording == RecordingID(Date(2014, 4, 29), missing, missing, missing)
@@ -49,7 +49,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test edf.header.start == DateTime(2014, 4, 29, 22, 19, 44)
     @test edf.header.record_count == 6
     @test edf.header.seconds_per_record == 1.0
-    @test edf.signals isa Vector{Union{Signal,AnnotationsSignal}}
+    @test edf.signals isa Vector{Union{Signal{Int16},AnnotationsSignal}}
     @test length(edf.signals) == 140
     for signal in edf.signals
         if signal isa EDF.Signal
@@ -128,7 +128,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test_throws ErrorException EDF.edf_write(IOBuffer(), "hahahahaha", 4)
 
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
-    @test sprint(show, uneven) == "EDF.File with 2 signals"
+    @test sprint(show, uneven) == "EDF.File with 2 16-bit-encoded signals"
     @test uneven.header.version == "0"
     @test uneven.header.patient == "A 3Hz sinewave and a 0.2Hz block signal, both starting in their positive phase"
     @test uneven.header.recording == "110 seconds from 13-JUL-2000 12.05.48hr."
@@ -213,5 +213,10 @@ const DATADIR = joinpath(@__DIR__, "data")
             file = EDF.read(path)
             @test deep_equal(bdf, file)
         end
+        @test EDF.sample_type(bdf) == EDF.Int24
+        @test EDF.sample_type(comp) == Int16
+        @test EDF.is_bdf(bdf)
+        @test !EDF.is_bdf(comp)
+        @test sprint(show, bdf) == "EDF.File with 8 24-bit-encoded signals"
     end
 end

@@ -2,6 +2,7 @@ BitIntegers.@define_integers 24
 
 const EDF_SAMPLE_TYPE = Int16
 const BDF_SAMPLE_TYPE = Int24
+const SUPPORTED_SAMPLE_TYPES = Union{EDF_SAMPLE_TYPE,BDF_SAMPLE_TYPE}
 
 #####
 ##### `EDF.Signal`
@@ -249,24 +250,27 @@ struct FileHeader
 end
 
 """
-    EDF.File{I<:IO}
+    EDF.File{T,I<:IO}
 
-Type representing an EDF file.
+Type representing an EDF file with samples encoded as values of type `T`, which is
+`Int16` for EDF files and `Int24` (internally defined) for BDF files.
 
 # Fields
 
 * `io::I`
 * `header::FileHeader`
-* `signals::Vector{Union{Signal,AnnotationsSignal}}`
+* `signals::Vector{Union{Signal{T},AnnotationsSignal}}`
 """
-struct File{I<:IO}
+struct File{T<:SUPPORTED_SAMPLE_TYPES,I<:IO}
     io::I
     header::FileHeader
-    signals::Vector{Union{Signal,AnnotationsSignal}}
+    signals::Vector{Union{Signal{T},AnnotationsSignal}}
 end
 
-function Base.show(io::IO, edf::File)
-    print(io, "EDF.File with ", length(edf.signals), " signals")
+function Base.show(io::IO, edf::File{T}) where T
+    print(io, "EDF.File with ", length(edf.signals), ' ', 8 * sizeof(T),
+          "-bit-encoded signals")
+    return nothing
 end
 
 Base.close(file::File) = close(file.io)

@@ -4,7 +4,7 @@
 [![codecov](https://codecov.io/gh/beacon-biosignals/EDF.jl/branch/master/graph/badge.svg?token=E8vy5nZtJF)](https://codecov.io/gh/beacon-biosignals/EDF.jl)
 [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://beacon-biosignals.github.io/EDF.jl/dev)
 
-Read and write [European Data Format (EDF/EDF+)](https://www.edfplus.info/) files in Julia.
+Read and write [European Data Format (EDF/EDF+)](https://www.edfplus.info/) and [BioSemi Data Format (BDF)](https://www.biosemi.com/faq/file_format.htm) files in Julia.
 
 Compared to all features implied by the EDF/EDF+ specifications, this package is currently missing:
 

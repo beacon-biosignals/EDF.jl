@@ -1,8 +1,9 @@
 # EDF.jl
 
-[![Build Status](https://www.travis-ci.com/beacon-biosignals/EDF.jl.svg?token=yHqDPFFPaiyJdiugxHd4&branch=master)](https://www.travis-ci.com/beacon-biosignals/EDF.jl)
+[![CI](https://github.com/beacon-biosignals/EDF.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/beacon-biosignals/EDF.jl/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/beacon-biosignals/EDF.jl/branch/master/graph/badge.svg?token=E8vy5nZtJF)](https://codecov.io/gh/beacon-biosignals/EDF.jl)
-[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://beacon-biosignals.github.io/EDF.jl/dev)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://beacon-biosignals.github.io/EDF.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://beacon-biosignals.github.io/EDF.jl/dev)
 
 Read and write [European Data Format (EDF/EDF+)](https://www.edfplus.info/) and [BioSemi Data Format (BDF)](https://www.biosemi.com/faq/file_format.htm) files in Julia.
 

@@ -2,6 +2,7 @@ using EDF
 using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
            Signal, AnnotationsSignal
 using Dates
+using FilePathsBase: FileBuffer, Path
 using Test
 
 #####
@@ -218,5 +219,15 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test EDF.is_bdf(bdf)
         @test !EDF.is_bdf(comp)
         @test sprint(show, bdf) == "EDF.File with 8 24-bit-encoded signals"
+    end
+
+    @testset "FilePathsBase support" begin
+        # test EDF.read(::AbstractPath)
+        edf = EDF.read(Path(joinpath(DATADIR, "test.edf")))
+        @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"
+
+        io = FileBuffer(Path(joinpath(DATADIR, "test.edf")))
+        edf = EDF.File(io)
+        @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"
     end
 end

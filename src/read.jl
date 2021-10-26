@@ -234,6 +234,10 @@ function File(io::IO)
     return File(io, file_header, signals)
 end
 
+# Workaround for compatibility with FilePathsBase:
+# https://github.com/rofinn/FilePathsBase.jl/issues/143
+File(io::FileBuffer) = File(IOBuffer(Base.read(io)))
+
 _size(io::IOStream) = filesize(io)
 _size(io::IOBuffer) = io.size
 _size(::IO) = -1  # type-stable unknown
@@ -275,8 +279,8 @@ See also: [`EDF.File`](@ref), [`EDF.read!`](@ref)
 read(io::IO) = read!(File(io))
 
 """
-    EDF.read(path::AbstractString)
+    EDF.read(path)
 
 Return `open(EDF.read, path)`.
 """
-read(path::AbstractString) = open(read, path)
+read(path) = open(read, path)

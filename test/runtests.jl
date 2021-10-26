@@ -226,6 +226,7 @@ const DATADIR = joinpath(@__DIR__, "data")
         edf = EDF.read(Path(joinpath(DATADIR, "test.edf")))
         @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"
 
+        # emulate EDF.read(::S3Path)
         io = FileBuffer(Path(joinpath(DATADIR, "test.edf")))
         edf = EDF.File(io)
         @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"

@@ -201,7 +201,7 @@ function File(io::IO)
     T = sample_type(file_header)
     signals = Union{Signal{T},AnnotationsSignal}[]
     for header in read_signal_headers(io, signal_count)
-        if header.label ∈ ANNOTATIONS_SIGNAL_LABEL
+        if header.label in ANNOTATIONS_SIGNAL_LABEL
             push!(signals, AnnotationsSignal(header))
         else
             push!(signals, Signal{T}(header, T[]))

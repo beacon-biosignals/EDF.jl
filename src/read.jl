@@ -275,8 +275,8 @@ See also: [`EDF.File`](@ref), [`EDF.read!`](@ref)
 read(io::IO) = read!(File(io))
 
 """
-    EDF.read(path::AbstractString)
+    EDF.read(path)
 
 Return `open(EDF.read, path)`.
 """
-read(path::AbstractString) = open(read, path)
+read(path) = open(read, path)

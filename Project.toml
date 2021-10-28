@@ -1,7 +1,7 @@
 name = "EDF"
 uuid = "ccffbfc1-f56e-50fb-a33b-53d1781b2825"
 authors = ["Beacon Biosignals, Inc."]
-version = "0.7.0"
+version = "0.7.1"
 
 [deps]
 BitIntegers = "c3b6d118-76ef-56ca-8cc7-ebb389d030a1"
@@ -10,10 +10,12 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 BitIntegers = "0.2"
+FilePathsBase = "0.9.13"
 julia = "1.4"
 
 [extras]
+FilePathsBase = "48062228-2e41-5def-b9a4-89aafe57970f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["FilePathsBase", "Test"]

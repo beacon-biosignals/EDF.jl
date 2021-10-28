@@ -2,7 +2,7 @@ using EDF
 using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
            Signal, AnnotationsSignal
 using Dates
-using FilePathsBase: FileBuffer, Path
+using FilePathsBase
 using Test
 
 #####

@@ -220,3 +220,19 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test sprint(show, bdf) == "EDF.File with 8 24-bit-encoded signals"
     end
 end
+
+
+@testset "BDF+ Files" begin
+    # This is a `BDF+` file containing only trigger information.
+    # It is similiar to a `EDF Annotations` file except that 
+    # The `ANNOTATIONS_SIGNAL_LABEL` is `BDF Annotations`.
+    # The test data has 1081 trigger events, and 
+    # has 180 trials in total, and 
+    # The annotation `255` signifies the offset of a trial.
+    # More information, contact: zhanlikan@hotmail.com
+    evt = EDF.read(joinpath(DATADIR, "evt.bdf"))
+    events = evt.signals[2].records;
+    @test (length(events)) == 1081
+    annotations = [(x.annotations)[1] for x in last.(events)]
+    @test filter(==("255"), annotations) == 180
+end

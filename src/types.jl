@@ -82,7 +82,7 @@ SignalHeader(signal::Signal) = signal.header
 ##### `EDF.AnnotationsSignal`
 #####
 
-const ANNOTATIONS_SIGNAL_LABEL = "EDF Annotations"
+const ANNOTATIONS_SIGNAL_LABEL = ["EDF Annotations", "BDF Annotations"]
 
 """
     EDF.TimestampedAnnotationList

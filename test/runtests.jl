@@ -233,6 +233,6 @@ end
     evt = EDF.read(joinpath(DATADIR, "evt.bdf"))
     events = evt.signals[2].records
     @test length(events) == 1081
-    annotations = [(x.annotations)[1] for x in last.(events)]
+    annotations = [event[end].annotations[1] for event in events]
     @test filter(==("255"), annotations) == 180
 end

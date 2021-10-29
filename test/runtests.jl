@@ -234,5 +234,5 @@ end
     events = evt.signals[2].records
     @test length(events) == 1081
     annotations = [event[end].annotations[1] for event in events]
-    @test filter(==("255"), annotations) == 180
+    @test count(==("255"), annotations) == 180
 end

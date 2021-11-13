@@ -155,6 +155,22 @@ function read_signal_record!(file::File, signal::Signal, record_index::Int)
     return nothing
 end
 
+function read_signal_record!(file::File, signal::TriggerStatusSignal, record_index::Int)
+    if isempty(signal.trigger)
+        @assert isempty(signal.status)
+        new_size = file.header.record_count * signal.header.samples_per_record
+        resize!(signal.trigger, new_size)
+        resize!(signal.status, new_size)
+    end
+    record_start = 1 + (record_index - 1) * signal.header.samples_per_record
+    record_stop = record_index * signal.header.samples_per_record
+    @inbounds for i in record_start:record_stop
+        signal.trigger[i] = Base.read(file.io, UInt16)
+        signal.status[i] = Base.read(file.io, UInt8)
+    end
+    return nothing
+end
+
 function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
     bytes_per_sample = sizeof(sample_type(file))
     io_for_record = IOBuffer(Base.read(file.io, bytes_per_sample * signal.samples_per_record))
@@ -199,10 +215,12 @@ data from `io` into the returned `EDF.File`, call `EDF.read!(file)`.
 function File(io::IO)
     file_header, signal_count = read_file_header(io)
     T = sample_type(file_header)
-    signals = Union{Signal{T},AnnotationsSignal}[]
+    signals = Union{Signal{T},AnnotationsSignal,TriggerStatusSignal}[]
     for header in read_signal_headers(io, signal_count)
         if header.label in ANNOTATIONS_SIGNAL_LABEL
             push!(signals, AnnotationsSignal(header))
+        elseif is_bdf(file_header) && header.label == "Status"
+            push!(signals, TriggerStatusSignal(header, UInt16[], UInt8[]))
         else
             push!(signals, Signal{T}(header, T[]))
         end
@@ -211,7 +229,7 @@ function File(io::IO)
     if file_size > 0
         bytes_left = file_size - position(io)
         total_expected_samples = sum(signals) do signal
-            if signal isa Signal
+            if signal isa Signal || signal isa TriggerStatusSignal
                 return signal.header.samples_per_record
             else
                 return signal.samples_per_record

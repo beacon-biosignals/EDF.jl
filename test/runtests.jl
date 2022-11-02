@@ -164,12 +164,14 @@ const DATADIR = joinpath(@__DIR__, "data")
     # Truncated files
     mktempdir() do dir
         # note that this tests a truncated final record, not an incorrect number of records
-        full_edf_bytes = read(joinpath(DATADIR, "test.edf"))
-        write(joinpath(dir, "test_truncated.edf"), full_edf_bytes[1:(end - 1)])
+        full_file = joinpath(DATADIR, "test.edf")
+        truncated_file = joinpath(dir, "test_truncated.edf")
+        full_edf_bytes = read(full_file)
+        write(truncated_file, full_edf_bytes[1:(end - 1)])
         @test_logs((:warn, "Number of data records in file header does not match " *
                     "file size. Skipping 1 truncated data record(s)."),
-                   EDF.read(joinpath(dir, "test_truncated.edf")))
-        truncated_edf = EDF.read(joinpath(dir, "test_truncated.edf"))
+                   EDF.read(truncated_file))
+        truncated_edf = EDF.read(truncated_file)
         for field in fieldnames(EDF.FileHeader)
             a = getfield(edf.header, field)
             b = getfield(truncated_edf.header, field)
@@ -191,6 +193,13 @@ const DATADIR = joinpath(@__DIR__, "data")
         end
         @test deep_equal(edf.signals[end].records[1:(edf.header.record_count - 1)],
                          truncated_edf.signals[end].records)
+        # Ensure that "exotic" IO types work for truncated records if the requisite
+        # methods exist
+        fb = FileBuffer(Path(truncated_file))
+        @test EDF._size(fb) == length(full_edf_bytes) - 1
+        fb_edf = EDF.read(fb)
+        @test deep_equal(truncated_edf.header, fb_edf.header)
+        @test deep_equal(truncated_edf.signals, fb_edf.signals)
     end
 
     @test EDF._size(IOBuffer("memes")) == 5

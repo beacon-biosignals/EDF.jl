@@ -236,7 +236,22 @@ end
 
 _size(io::IOStream) = filesize(io)
 _size(io::IOBuffer) = io.size
-_size(::IO) = -1  # type-stable unknown
+
+# NOTE: We're using -1 here as a type-stable way of denoting an unknown size.
+# Also note that some `IO` types may have a specific method for `stat` which would be
+# convenient except that it's difficult to determine since `stat` has an untyped method
+# that won't work for `IO` types despite `applicable`/`hasmethod` thinking it applies.
+# Instead, we'll check for the availability of seeking-related methods and try to use
+# those to determine the size, returning -1 if the requisite methods don't apply.
+function _size(io::IO)
+    applicable(position, io) || return -1
+    here = position(io)
+    applicable(seek, io, here) && applicable(seekend, io) || return -1
+    seekend(io)
+    nbytes = position(io)
+    seek(io, here)
+    return nbytes
+end
 
 """
     EDF.is_bdf(file)

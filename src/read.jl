@@ -217,7 +217,7 @@ function File(io::IO)
                 return signal.samples_per_record
             end
         end
-        readable_records = div(div(bytes_left, 2), total_expected_samples)
+        readable_records = div(div(bytes_left, sizeof(T)), total_expected_samples)
         if file_header.record_count > readable_records
             @warn("Number of data records in file header does not match file size. " *
                   "Skipping $(file_header.record_count - readable_records) truncated " *

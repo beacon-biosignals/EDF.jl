@@ -162,15 +162,16 @@ const DATADIR = joinpath(@__DIR__, "data")
     end
 
     # Truncated files
-    mktempdir() do dir
+    dir = mktempdir(; cleanup=true)
+    for full_file in ["test.edf", "evt.bdf"]
         # note that this tests a truncated final record, not an incorrect number of records
-        full_file = joinpath(DATADIR, "test.edf")
-        truncated_file = joinpath(dir, "test_truncated.edf")
-        full_edf_bytes = read(full_file)
+        truncated_file = joinpath(dir, "test_truncated" * last(splitext(full_file)))
+        full_edf_bytes = read(joinpath(DATADIR, full_file))
         write(truncated_file, full_edf_bytes[1:(end - 1)])
         @test_logs((:warn, "Number of data records in file header does not match " *
                     "file size. Skipping 1 truncated data record(s)."),
                    EDF.read(truncated_file))
+        edf = EDF.read(joinpath(DATADIR, full_file))
         truncated_edf = EDF.read(truncated_file)
         for field in fieldnames(EDF.FileHeader)
             a = getfield(edf.header, field)

@@ -166,6 +166,16 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test EDF._edf_repr(4.180821e-7) == "0"
     @test EDF._edf_repr(4.180821e-7; allow_scientific=true) == "4.181E-7"
 
+    @test EDF._edf_repr(floatmin(Float64)) == "0"
+    @test EDF._edf_repr(floatmin(Float64); allow_scientific=true) == "2.2E-308"
+
+    @test_throws ErrorException EDF._edf_repr(floatmax(Float64)) == "0"
+    @test EDF._edf_repr(floatmax(Float64); allow_scientific=true) == "1.8E+308"
+
+    # We still get errors if we too "big" (in the exponent)
+    @test_throws ErrorException EDF._edf_repr(big"1e-999999"; allow_scientific=true)
+    @test_throws ErrorException EDF._edf_repr(big"1e999999"; allow_scientific=true)
+
     # if we don't allow scientific notation, we allow rounding down here
     @test EDF._edf_repr(0.00000000024) == "0"
     @test EDF._edf_repr(0.00000000024; allow_scientific=true) == "2.4E-10"

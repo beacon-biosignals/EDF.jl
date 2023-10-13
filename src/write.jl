@@ -2,52 +2,116 @@
 ##### utilities
 #####
 
-_edf_repr(value::Union{String,Char}) = value
-_edf_repr(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
-_edf_repr(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
+# `allow_scientific` is only meaningful for `value::Number`. We allow passing it though,
+# so `edf_write` can be more generic.
+_edf_repr(value::Union{String,Char}; allow_scientific=nothing) = value
+_edf_repr(date::Date; allow_scientific=nothing) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
+_edf_repr(date::DateTime; allow_scientific=nothing) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
 
-# XXX this is really really hacky and doesn't support use of scientific notation
-# where appropriate; keep in mind if you do improve this to support scientific
-# notation, that scientific is NOT allowed in EDF annotation onset/duration fields
-function _edf_repr(x::Real)
-    result = missing
-    if isinteger(x)
-        str = string(trunc(Int, x))
-        if length(str) <= 8
-            result = str
-        end
-    else
-        fpart, ipart = modf(x)
-        ipart_str = string('-'^signbit(x), Int(abs(ipart))) # handles `-0.0` case
-        fpart_str = @sprintf "%.7f" abs(fpart)
-        fpart_str = fpart_str[3:end] # remove leading `0.`
-        if length(ipart_str) < 7
-            result = ipart_str * '.' * fpart_str[1:(7 - length(ipart_str))]
-        elseif length(ipart_str) <= 8
-            result = ipart_str
-        end
-    end
-    if !ismissing(result)
-        if all(c -> c in ('0', '.', '-'), result)
-            x == 0 && return result
+"""
+    sprintf_G_under_8(x) -> String
+
+Return a string of length at most 8, written in either scientific notation (using capital-'E'),
+or in decimal format, using as much precision as possible.
+"""
+function sprintf_G_under_8(x)
+    shorten = str -> begin
+        if contains(str, 'E')
+            # Remove extraneous 0's in exponential notation
+            str = replace(str, "E-0" => "E-")
+            str = replace(str, "E+0" => "E+")
+            # Remove any leading/trailing whitespace
+            return strip(str)
         else
-            return result
+            # Decimal format. Call out to `trim_F`
+            return trim_F(str)
         end
     end
+    # Strategy:
+    # `@printf("%0.NG", x)` means:
+    # - `G`: Use the shortest representation: %E or %F. That is, scientific notation (with capital E) or decimals, whichever is shorted
+    # - `.N`: (for literal `N`, like `5`): the maximum number of significant digits to be printed
+    # However, `@printf("%0.NG", x)` may have more than `N` characters (e.g. presence of E, and the values for the exponent, the decimal place, etc)
+    # So we start from 8 (most precision), and stop as soon as we get under 8 characters
+    sig_8 = shorten(@sprintf("%.8G", x))
+    length(sig_8) <= 8 && return sig_8
+    sig_7 = shorten(@sprintf("%.7G", x))
+    length(sig_7) <= 8 && return sig_7
+    sig_6 = shorten(@sprintf("%.6G", x))
+    length(sig_6) <= 8 && return sig_6
+    sig_5 = shorten(@sprintf("%.5G", x))
+    length(sig_5) <= 8 && return sig_5
+    sig_4 = shorten(@sprintf("%.4G", x))
+    length(sig_4) <= 8 && return sig_4
+    sig_3 = shorten(@sprintf("%.3G", x))
+    length(sig_3) <= 8 && return sig_3
+    sig_2 = shorten(@sprintf("%.2G", x))
+    length(sig_2) <= 8 && return sig_2
+    sig_1 = shorten(@sprintf("%.1G", x))
+    length(sig_1) <= 8 && return sig_1
     error("failed to fit number into EDF's 8 ASCII character limit: $x")
+end
+
+function trim_F(str)
+    if contains(str, '.')
+        # Remove trailing 0's after the decimal point
+        str = rstrip(str, '0')
+        # If the `.` is at the end now, strip it
+        str = rstrip(str, '.')
+    end
+    # Removing leading or trailing whitespace
+    str = strip(str)
+    return str
+end
+
+function sprintf_F_under_8(x)
+    shorten = trim_F
+    # Strategy:
+    # `@printf("%0.NF", x)` means:
+    # - `F`: print with decimals
+    # - `.N`: (for literal `N`, like `5`): the maximum number of digits to print after the decimal
+    # However, `@printf("%0.NF", x)` may have more than `N` characters (e.g. digits to the left of the decimal point)
+    # So we start from 8 (most precision), and stop as soon as we get under 8 characters
+    sig_8 = shorten(@sprintf("%.8F", x))
+    length(sig_8) <= 8 && return sig_8
+    sig_7 = shorten(@sprintf("%.7F", x))
+    length(sig_7) <= 8 && return sig_7
+    sig_6 = shorten(@sprintf("%.6F", x))
+    length(sig_6) <= 8 && return sig_6
+    sig_5 = shorten(@sprintf("%.5F", x))
+    length(sig_5) <= 8 && return sig_5
+    sig_4 = shorten(@sprintf("%.4F", x))
+    length(sig_4) <= 8 && return sig_4
+    sig_3 = shorten(@sprintf("%.3F", x))
+    length(sig_3) <= 8 && return sig_3
+    sig_2 = shorten(@sprintf("%.2F", x))
+    length(sig_2) <= 8 && return sig_2
+    sig_1 = shorten(@sprintf("%.1F", x))
+    length(sig_1) <= 8 && return sig_1
+    error("failed to fit number into EDF's 8 ASCII character limit: $x")
+end
+
+function _edf_repr(x::Real; allow_scientific=false)
+    if allow_scientific
+        return sprintf_G_under_8(x)
+    else
+        return sprintf_F_under_8(x)
+    end
 end
 
 _edf_metadata_repr(::Missing) = 'X'
 _edf_metadata_repr(x) = _edf_repr(x)
 
-function _edf_repr(metadata::T) where T<:Union{PatientID,RecordingID}
+function _edf_repr(metadata::T; allow_scientific=nothing) where {T<:Union{PatientID,RecordingID}}
     header = T <: RecordingID ? String["Startdate"] : String[]
+    # None of the fields of `PatientID` or `RecordingID` are floating point, so we don't need
+    # to worry about passing `allow_scientific=true`.
     return join([header; [_edf_metadata_repr(getfield(metadata, name)) for name in fieldnames(T)]], ' ')
 end
 
-function edf_write(io::IO, value, byte_limit::Integer)
-    edf_value = _edf_repr(value)
-    sizeof(edf_value) > byte_limit && error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: $value")
+function edf_write(io::IO, value, byte_limit::Integer; allow_scientific=false)
+    edf_value = _edf_repr(value; allow_scientific)
+    sizeof(edf_value) > byte_limit && error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: `$value`. Representation: `$edf_value`")
     bytes_written = Base.write(io, edf_value)
     while bytes_written < byte_limit
         bytes_written += Base.write(io, UInt8(' '))
@@ -86,13 +150,13 @@ function write_header(io::IO, file::File)
     bytes_written += edf_write(io, expected_bytes_written, 8)
     bytes_written += edf_write(io, file.header.is_contiguous ? "EDF+C" : "EDF+D", 44)
     bytes_written += edf_write(io, file.header.record_count, 8)
-    bytes_written += edf_write(io, file.header.seconds_per_record, 8)
+    bytes_written += edf_write(io, file.header.seconds_per_record, 8; allow_scientific=true)
     bytes_written += edf_write(io, length(file.signals), 4)
     signal_headers = SignalHeader.(file.signals)
-    for (field_name, byte_limit) in SIGNAL_HEADER_FIELDS
+    for (field_name, byte_limit, allow_scientific) in SIGNAL_HEADER_FIELDS
         for signal_header in signal_headers
             field = getfield(signal_header, field_name)
-            bytes_written += edf_write(io, field, byte_limit)
+            bytes_written += edf_write(io, field, byte_limit; allow_scientific)
         end
     end
     bytes_written += edf_write(io, ' ', 32 * length(file.signals))
@@ -138,10 +202,11 @@ function write_tal(io::IO, tal::TimestampedAnnotationList)
     if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
         bytes_written += Base.write(io, '+')
     end
+    # We do not pass `allow_scientific=true`, since that is not allowed for onset or durations
     bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
     if tal.duration_in_seconds !== nothing
         bytes_written += Base.write(io, 0x15)
-        bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
+        bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds)) # again, no `allow_scientific=true`
     end
     if isempty(tal.annotations)
         bytes_written += Base.write(io, 0x14)

@@ -8,15 +8,15 @@ const SUPPORTED_SAMPLE_TYPES = Union{EDF_SAMPLE_TYPE,BDF_SAMPLE_TYPE}
 ##### `EDF.Signal`
 #####
 
-const SIGNAL_HEADER_FIELDS = [(:label, 16),
-                              (:transducer_type, 80),
-                              (:physical_dimension, 8),
-                              (:physical_minimum, 8),
-                              (:physical_maximum, 8),
-                              (:digital_minimum, 8),
-                              (:digital_maximum, 8),
-                              (:prefilter, 80),
-                              (:samples_per_record, 8)]
+const SIGNAL_HEADER_FIELDS = [(:label, 16, false),
+                              (:transducer_type, 80, false),
+                              (:physical_dimension, 8, false),
+                              (:physical_minimum, 8, true),
+                              (:physical_maximum, 8, true),
+                              (:digital_minimum, 8, true),
+                              (:digital_maximum, 8, true),
+                              (:prefilter, 80, false),
+                              (:samples_per_record, 8, false)]
 
 """
     EDF.SignalHeader

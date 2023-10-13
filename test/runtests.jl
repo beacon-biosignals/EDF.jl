@@ -163,6 +163,9 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test_throws ErrorException EDF._edf_repr(123456789)
     @test_throws ErrorException EDF._edf_repr(-12345678)
 
+    @test EDF._edf_repr(4.180821e-7) == "0"
+    @test EDF._edf_repr(4.180821e-7; allow_scientific=true) == "4.181E-7"
+
     # if we don't allow scientific notation, we allow rounding down here
     @test EDF._edf_repr(0.00000000024) == "0"
     @test EDF._edf_repr(0.00000000024; allow_scientific=true) == "2.4E-10"

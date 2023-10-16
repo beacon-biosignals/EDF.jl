@@ -1,15 +1,17 @@
 using EDF
 using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
-           Signal, AnnotationsSignal
+    Signal, AnnotationsSignal
 using Dates
 using FilePathsBase
 using Test
+using PyMNE
+using Accessors
 
 #####
 ##### Testing utilities
 #####
 
-function deep_equal(a::T, b::T) where T
+function deep_equal(a::T, b::T) where {T}
     nfields = fieldcount(T)
     if nfields == 0
         return isequal(a, b)  # Use `isequal` instead of `==` to handle `missing`
@@ -23,7 +25,7 @@ function deep_equal(a::T, b::T) where T
     return true
 end
 
-function deep_equal(a::T, b::T) where T<:AbstractArray
+function deep_equal(a::T, b::T) where {T<:AbstractArray}
     length(a) == length(b) || return false
     for (x, y) in zip(a, b)
         deep_equal(x, y) || return false
@@ -32,6 +34,21 @@ function deep_equal(a::T, b::T) where T<:AbstractArray
 end
 
 deep_equal(a::T, b::S) where {T,S} = false
+
+function mne_read(edf)
+    tmpfile = joinpath(mktempdir(), "test.edf")
+    EDF.write(tmpfile, edf)
+    # Check we can load it and do something with it
+    py = PyMNE.io.read_raw_edf(tmpfile; verbose=false)
+    py.load_data(; verbose=false)
+    collect(py.annotations)
+    results = IOCapture.capture() do
+        py.describe()
+    end
+    @test !results.error
+    @test contains(results.output, "RawEDF | test.edf")
+    return py
+end
 
 #####
 ##### Actual tests
@@ -62,11 +79,11 @@ const DATADIR = joinpath(@__DIR__, "data")
             # the entire file, but it seems like whoever wrote these onsets might have used values
             # that were relative to the start of the surrounding data record
             expected = [[TimestampedAnnotationList(0.0, nothing, String[""]), TimestampedAnnotationList(0.0, nothing, ["start"])],
-                        [TimestampedAnnotationList(1.0, nothing, String[""]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
-                        [TimestampedAnnotationList(2.0, nothing, String[""]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
-                        [TimestampedAnnotationList(3.0, nothing, String[""]), TimestampedAnnotationList(2.0, nothing, ["type B"])],
-                        [TimestampedAnnotationList(4.0, nothing, String[""]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
-                        [TimestampedAnnotationList(5.0, nothing, String[""])]]
+                [TimestampedAnnotationList(1.0, nothing, String[""]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
+                [TimestampedAnnotationList(2.0, nothing, String[""]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
+                [TimestampedAnnotationList(3.0, nothing, String[""]), TimestampedAnnotationList(2.0, nothing, ["type B"])],
+                [TimestampedAnnotationList(4.0, nothing, String[""]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
+                [TimestampedAnnotationList(5.0, nothing, String[""])]]
             @test all(signal.records .== expected)
             @test AnnotationsSignal(signal.records).samples_per_record == 16
         end
@@ -87,17 +104,25 @@ const DATADIR = joinpath(@__DIR__, "data")
     EDF.read!(file)
     @test deep_equal(edf.signals, file.signals)
 
+    # Check we can read it into MNE
+    py = mne_read(edf)
+    @test length(py.annotations) == 5
+    ann = py.annotations[1]
+    @test pyconvert(Float64, ann["onset"]) == 0.1344
+    @test pyconvert(Float64, ann["duration"]) == 0.256
+    @test pyconvert(String, ann["description"]) == "type A"
+
     # test that EDF.write(::IO, ::EDF.File) errors if file is
     # discontiguous w/o an AnnotationsSignal present
     bad_file = EDF.File(IOBuffer(),
-                        EDF.FileHeader(file.header.version,
-                                       file.header.patient,
-                                       file.header.recording,
-                                       file.header.start,
-                                       false, # is_contiguous
-                                       file.header.record_count,
-                                       file.header.seconds_per_record),
-                        filter(s -> !(s isa AnnotationsSignal), file.signals))
+        EDF.FileHeader(file.header.version,
+            file.header.patient,
+            file.header.recording,
+            file.header.start,
+            false, # is_contiguous
+            file.header.record_count,
+            file.header.seconds_per_record),
+        filter(s -> !(s isa AnnotationsSignal), file.signals))
     @test_throws ArgumentError EDF.write(IOBuffer(), bad_file)
 
     # test EDF.write(::AbstractString, ::EDF.File)
@@ -156,9 +181,9 @@ const DATADIR = joinpath(@__DIR__, "data")
     #     for x in signal:
     #         f.write("%s\n" % x)
     # ```
-    mne = map(line->parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
+    mne = map(line -> parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
     for (a, b) in zip(EDF.decode(signal), mne)
-        @test a ≈ b atol=0.01
+        @test a ≈ b atol = 0.01
     end
 
     # Truncated files
@@ -167,10 +192,10 @@ const DATADIR = joinpath(@__DIR__, "data")
         # note that this tests a truncated final record, not an incorrect number of records
         truncated_file = joinpath(dir, "test_truncated" * last(splitext(full_file)))
         full_edf_bytes = read(joinpath(DATADIR, full_file))
-        write(truncated_file, full_edf_bytes[1:(end - 1)])
+        write(truncated_file, full_edf_bytes[1:(end-1)])
         @test_logs((:warn, "Number of data records in file header does not match " *
-                    "file size. Skipping 1 truncated data record(s)."),
-                   EDF.read(truncated_file))
+                           "file size. Skipping 1 truncated data record(s)."),
+            EDF.read(truncated_file))
         edf = EDF.read(joinpath(DATADIR, full_file))
         truncated_edf = EDF.read(truncated_file)
         for field in fieldnames(EDF.FileHeader)
@@ -187,13 +212,13 @@ const DATADIR = joinpath(@__DIR__, "data")
             bad = truncated_edf.signals[i]
             if good isa EDF.Signal
                 @test deep_equal(good.header, bad.header)
-                @test good.samples[1:(end - good.header.samples_per_record)] == bad.samples
+                @test good.samples[1:(end-good.header.samples_per_record)] == bad.samples
             else
                 @test good.samples_per_record == bad.samples_per_record
             end
         end
-        @test deep_equal(edf.signals[end].records[1:(edf.header.record_count - 1)],
-                         truncated_edf.signals[end].records)
+        @test deep_equal(edf.signals[end].records[1:(edf.header.record_count-1)],
+            truncated_edf.signals[end].records)
         # Ensure that "exotic" IO types work for truncated records if the requisite
         # methods exist
         fb = FileBuffer(Path(truncated_file))
@@ -215,7 +240,7 @@ const DATADIR = joinpath(@__DIR__, "data")
         for i in 1:8
             bdf_values = EDF.decode(bdf.signals[i])
             comp_values = EDF.decode(comp.signals[i])
-            @test bdf_values ≈ comp_values rtol=0.01
+            @test bdf_values ≈ comp_values rtol = 0.01
         end
         # Ensure that BDF files can also be round-tripped
         mktempdir() do dir
@@ -241,15 +266,25 @@ const DATADIR = joinpath(@__DIR__, "data")
         edf = EDF.File(io)
         @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"
     end
+
+    @testset "Exports readable by MNE" begin
+        edf = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
+        @test edf.signals[1].header.digital_minimum ≈ -32767.0f0
+        edf = @set edf.signals[1].header.digital_minimum = -32767*2
+
+        py = mne_read(edf)
+        @test isempty(py.annotations)
+
+    end
 end
 
 
 @testset "BDF+ Files" begin
     # This is a `BDF+` file containing only trigger information.
-    # It is similiar to a `EDF Annotations` file except that 
+    # It is similiar to a `EDF Annotations` file except that
     # The `ANNOTATIONS_SIGNAL_LABEL` is `BDF Annotations`.
-    # The test data has 1081 trigger events, and 
-    # has 180 trials in total, and 
+    # The test data has 1081 trigger events, and
+    # has 180 trials in total, and
     # The annotation `255` signifies the offset of a trial.
     # More information, contact: zhanlikan@hotmail.com
     evt = EDF.read(joinpath(DATADIR, "evt.bdf"))

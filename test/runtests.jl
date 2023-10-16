@@ -6,7 +6,7 @@ using FilePathsBase
 using Test
 using PyMNE
 using Accessors
-
+using IOCapture
 #####
 ##### Testing utilities
 #####

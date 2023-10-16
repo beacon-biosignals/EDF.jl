@@ -8,6 +8,8 @@ const SUPPORTED_SAMPLE_TYPES = Union{EDF_SAMPLE_TYPE,BDF_SAMPLE_TYPE}
 ##### `EDF.Signal`
 #####
 
+# List of triples of `(fieldname, byte_limit, allow_scientific_notation)`
+# describing how these header fields should be written
 const SIGNAL_HEADER_FIELDS = [(:label, 16, false),
                               (:transducer_type, 80, false),
                               (:physical_dimension, 8, false),

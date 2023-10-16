@@ -1,6 +1,6 @@
 using EDF
 using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
-           Signal, AnnotationsSignal, sprintf_G_under_8, sprintf_F_under_8
+           Signal, AnnotationsSignal, _edf_repr
 using Dates
 using FilePathsBase
 using Test
@@ -41,40 +41,40 @@ const DATADIR = joinpath(@__DIR__, "data")
 
 @testset "Just Do It" begin
 
-    @testset "sprintf functionality" begin
-        # Moderate sized numbers
-        @test sprintf_G_under_8(0.123) == "0.123"
-        @test sprintf_F_under_8(0.123) == "0.123"
+    @testset "_edf_repr(x::Real, allow_scientific::Bool)" begin
 
-        @test sprintf_G_under_8(1.123) == "1.123"
-        @test sprintf_F_under_8(1.123) == "1.123"
+        # Moderate sized numbers - should be the same either way
+        for allow_scientific in (true, false)
+            @test _edf_repr(0.123, allow_scientific) == "0.123"
+            @test _edf_repr(1.123, allow_scientific) == "1.123"
+            @test _edf_repr(10.123, allow_scientific) == "10.123"
 
-        @test sprintf_G_under_8(10.123) == "10.123"
-        @test sprintf_F_under_8(10.123) == "10.123"
+            @test _edf_repr(123, allow_scientific) == "123"
+            @test _edf_repr(123 + eps(Float64), allow_scientific) == "123"
 
-        # Moderate numbers, many digits
-        @test sprintf_G_under_8(0.8945620050698592) == "0.894562"
-        @test sprintf_F_under_8(0.8945620050698592) == "0.894562"
+            # Moderate numbers, many digits
+            @test _edf_repr(0.8945620050698592, false) == "0.894562"
+        end
 
         # Large numbers / few digits
-        @test sprintf_G_under_8(0.123e10) == "1.23E+9"
+        @test _edf_repr(0.123e10, true) == "1.23E+9"
         # decimal version cannot handle it:
-        err = ErrorException("failed to fit number into EDF's 8 ASCII character limit: 1.23e9")
-        @test_throws err sprintf_F_under_8(0.123e10)
+        err = ArgumentError("cannot represent 1.23e9 in 8 ASCII characters")
+        @test_throws err _edf_repr(0.123e10, false)
 
         # Large numbers / many digits
-        @test sprintf_G_under_8(0.8945620050698592e10) == "8.946E+9"
-        err = ErrorException("failed to fit number into EDF's 8 ASCII character limit: 8.945620050698591e9")
-        @test_throws err sprintf_F_under_8(0.8945620050698592e10)
+        @test _edf_repr(0.8945620050698592e10, true) == "8.946E+9"
+        err = ArgumentError("cannot represent 8.945620050698591e9 in 8 ASCII characters")
+        @test_throws err _edf_repr(0.8945620050698592e10, false)
 
         # Small numbers / few digits
-        @test sprintf_G_under_8(0.123e-10) == "1.23E-11"
+        @test _edf_repr(0.123e-10, true) == "1.23E-11"
         # decimal version underflows:
-        @test sprintf_F_under_8(0.123e-10) == "0"
+        @test _edf_repr(0.123e-10, false) == "0"
 
         # Small numbers / many digits
-        @test sprintf_G_under_8(0.8945620050698592e-10) == "8.95E-11"
-        @test sprintf_F_under_8(0.8945620050698592e-10) == "0"
+        @test _edf_repr(0.8945620050698592e-10, true) == "8.95E-11"
+        @test _edf_repr(0.8945620050698592e-10, false) == "0"
     end
 
     # test EDF.read(::AbstractString)
@@ -160,25 +160,25 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test EDF._edf_repr(0.0345) == "0.0345"
     @test EDF._edf_repr(-0.02) == "-0.02"
     @test EDF._edf_repr(-187.74445) == "-187.744"
-    @test_throws ErrorException EDF._edf_repr(123456789)
-    @test_throws ErrorException EDF._edf_repr(-12345678)
+    @test_throws ArgumentError EDF._edf_repr(123456789)
+    @test_throws ArgumentError EDF._edf_repr(-12345678)
 
     @test EDF._edf_repr(4.180821e-7) == "0"
-    @test EDF._edf_repr(4.180821e-7; allow_scientific=true) == "4.181E-7"
+    @test EDF._edf_repr(4.180821e-7, true) == "4.181E-7"
 
     @test EDF._edf_repr(floatmin(Float64)) == "0"
-    @test EDF._edf_repr(floatmin(Float64); allow_scientific=true) == "2.2E-308"
+    @test EDF._edf_repr(floatmin(Float64), true) == "2.2E-308"
 
-    @test_throws ErrorException EDF._edf_repr(floatmax(Float64)) == "0"
-    @test EDF._edf_repr(floatmax(Float64); allow_scientific=true) == "1.8E+308"
+    @test_throws ArgumentError EDF._edf_repr(floatmax(Float64))
+    @test EDF._edf_repr(floatmax(Float64), true) == "1.8E+308"
 
     # We still get errors if we too "big" (in the exponent)
-    @test_throws ErrorException EDF._edf_repr(big"1e-999999"; allow_scientific=true)
-    @test_throws ErrorException EDF._edf_repr(big"1e999999"; allow_scientific=true)
+    @test_throws ArgumentError EDF._edf_repr(big"1e-999999", true)
+    @test_throws ArgumentError EDF._edf_repr(big"1e999999", true)
 
     # if we don't allow scientific notation, we allow rounding down here
     @test EDF._edf_repr(0.00000000024) == "0"
-    @test EDF._edf_repr(0.00000000024; allow_scientific=true) == "2.4E-10"
+    @test EDF._edf_repr(0.00000000024, true) == "2.4E-10"
     @test_throws ErrorException EDF.edf_write(IOBuffer(), "hahahahaha", 4)
 
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))

@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   format-check:
-  if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

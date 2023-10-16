@@ -1,0 +1,42 @@
+name: Format Check
+on:
+  # because we rely on ReviewDog to trigger failure, there's no reason to run on anything
+  pull_request:
+    paths:
+      - "**/*.jl"
+      - ".github/workflows/FormatCheck.yml"
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+jobs:
+  format-check:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        version:
+          - "1"
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
+    steps:
+      - uses: actions/checkout@v3
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: julia-actions/cache@v1
+        with:
+          cache-name: "${{ github.workflow }}-${{ github.job }}-${{ matrix.pkg.name }}-${{ matrix.version }}-${{ matrix.os }}-${{ matrix.arch }}"
+          cache-compiled: true
+      - name: Instantiate `format` environment and format
+        run: |
+          julia --project=format -e 'using Pkg; Pkg.instantiate()'
+          julia --project=format 'format/run.jl'
+      - uses: reviewdog/action-suggester@v1
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        with:
+          tool_name: JuliaFormatter
+          fail_on_error: true

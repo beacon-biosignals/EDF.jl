@@ -37,7 +37,6 @@ jobs:
           julia --project=format 'format/run.jl'
       - run: git diff
       - uses: reviewdog/action-suggester@v1
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
         with:
           tool_name: JuliaFormatter
           fail_on_error: true

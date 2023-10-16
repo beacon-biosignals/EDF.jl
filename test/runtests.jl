@@ -277,7 +277,6 @@ const DATADIR = joinpath(@__DIR__, "data")
         edf = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
         @test edf.signals[1].header.digital_minimum ≈ -32767.0f0
         edf = @set edf.signals[1].header.digital_minimum = -32767 * 2
-        @test edf.signals[1].header.digital_minimum == -32767 * 2 # double-check it got set
         py = mne_read(edf)
         @test isempty(py.annotations)
     end

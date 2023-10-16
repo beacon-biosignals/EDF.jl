@@ -11,12 +11,12 @@ using Accessors
 ##### Testing utilities
 #####
 
-function deep_equal(a::T, b::T) where {T}
+function deep_equal(a::T, b::T) where T
     nfields = fieldcount(T)
     if nfields == 0
         return isequal(a, b)  # Use `isequal` instead of `==` to handle `missing`
     else
-        for i in 1:nfields
+        for i = 1:nfields
             typeof(getfield(a, i)) <: IO && continue # Two different files will have different IO sources
             isdefined(a, i) || return !isdefined(b, i)  # Call two undefs equal
             deep_equal(getfield(a, i), getfield(b, i)) || return false
@@ -25,7 +25,7 @@ function deep_equal(a::T, b::T) where {T}
     return true
 end
 
-function deep_equal(a::T, b::T) where {T<:AbstractArray}
+function deep_equal(a::T, b::T) where T<:AbstractArray
     length(a) == length(b) || return false
     for (x, y) in zip(a, b)
         deep_equal(x, y) || return false
@@ -71,24 +71,18 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test length(edf.signals) == 140
     for signal in edf.signals
         if signal isa EDF.Signal
-            @test length(signal.samples) ==
-                  signal.header.samples_per_record * edf.header.record_count
+            @test length(signal.samples) == signal.header.samples_per_record * edf.header.record_count
         else
             @test length(signal.records) == edf.header.record_count
             # XXX seems like this test file actually contains nonsensical onset timestamps...
             # according to the EDF+ specification, onsets should be relative to the start time of
             # the entire file, but it seems like whoever wrote these onsets might have used values
             # that were relative to the start of the surrounding data record
-            expected = [[TimestampedAnnotationList(0.0, nothing, String[""]),
-                         TimestampedAnnotationList(0.0, nothing, ["start"])],
-                        [TimestampedAnnotationList(1.0, nothing, String[""]),
-                         TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
-                        [TimestampedAnnotationList(2.0, nothing, String[""]),
-                         TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
-                        [TimestampedAnnotationList(3.0, nothing, String[""]),
-                         TimestampedAnnotationList(2.0, nothing, ["type B"])],
-                        [TimestampedAnnotationList(4.0, nothing, String[""]),
-                         TimestampedAnnotationList(2.5, 2.5, ["type A"])],
+            expected = [[TimestampedAnnotationList(0.0, nothing, String[""]), TimestampedAnnotationList(0.0, nothing, ["start"])],
+                        [TimestampedAnnotationList(1.0, nothing, String[""]), TimestampedAnnotationList(0.1344, 0.256, ["type A"])],
+                        [TimestampedAnnotationList(2.0, nothing, String[""]), TimestampedAnnotationList(0.3904, 1.0, ["type A"])],
+                        [TimestampedAnnotationList(3.0, nothing, String[""]), TimestampedAnnotationList(2.0, nothing, ["type B"])],
+                        [TimestampedAnnotationList(4.0, nothing, String[""]), TimestampedAnnotationList(2.5, 2.5, ["type A"])],
                         [TimestampedAnnotationList(5.0, nothing, String[""])]]
             @test all(signal.records .== expected)
             @test AnnotationsSignal(signal.records).samples_per_record == 16
@@ -143,14 +137,11 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) ==
-          "-0.00234"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(0.0023405432)) ==
-          "0.002340"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) == "-0.00234"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(0.0023405432)) == "0.002340"
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1.002343)) == "1.002343"
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1011.05432)) == "1011.054"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1011.05432)) ==
-          "-1011.05"
+    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1011.05432)) == "-1011.05"
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.5)) == "-1013442"
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.3)) == "-1013441"
     @test EDF._edf_repr(34577777) == "34577777"
@@ -165,15 +156,13 @@ const DATADIR = joinpath(@__DIR__, "data")
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
     @test sprint(show, uneven) == "EDF.File with 2 16-bit-encoded signals"
     @test uneven.header.version == "0"
-    @test uneven.header.patient ==
-          "A 3Hz sinewave and a 0.2Hz block signal, both starting in their positive phase"
+    @test uneven.header.patient == "A 3Hz sinewave and a 0.2Hz block signal, both starting in their positive phase"
     @test uneven.header.recording == "110 seconds from 13-JUL-2000 12.05.48hr."
     @test uneven.header.is_contiguous
     @test uneven.header.start == DateTime(2000, 1, 31, 23, 0, 59)
     @test uneven.header.record_count == 11
     @test uneven.header.seconds_per_record == 10.0
-    @test uneven.signals[1].header.samples_per_record !=
-          uneven.signals[2].header.samples_per_record
+    @test uneven.signals[1].header.samples_per_record != uneven.signals[2].header.samples_per_record
     @test length(uneven.signals) == 2
 
     nonint = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
@@ -192,9 +181,9 @@ const DATADIR = joinpath(@__DIR__, "data")
     #     for x in signal:
     #         f.write("%s\n" % x)
     # ```
-    mne = map(line -> parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
+    mne = map(line->parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
     for (a, b) in zip(EDF.decode(signal), mne)
-        @test a ≈ b atol = 0.01
+        @test a ≈ b atol=0.01
     end
 
     # Truncated files
@@ -204,10 +193,9 @@ const DATADIR = joinpath(@__DIR__, "data")
         truncated_file = joinpath(dir, "test_truncated" * last(splitext(full_file)))
         full_edf_bytes = read(joinpath(DATADIR, full_file))
         write(truncated_file, full_edf_bytes[1:(end - 1)])
-        @test_logs((:warn,
-                    "Number of data records in file header does not match " *
+        @test_logs((:warn, "Number of data records in file header does not match " *
                     "file size. Skipping 1 truncated data record(s)."),
-                   EDF.read(truncated_file))
+                    EDF.read(truncated_file))
         edf = EDF.read(joinpath(DATADIR, full_file))
         truncated_edf = EDF.read(truncated_file)
         for field in fieldnames(EDF.FileHeader)
@@ -252,7 +240,7 @@ const DATADIR = joinpath(@__DIR__, "data")
         for i in 1:8
             bdf_values = EDF.decode(bdf.signals[i])
             comp_values = EDF.decode(comp.signals[i])
-            @test bdf_values ≈ comp_values rtol = 0.01
+            @test bdf_values ≈ comp_values rtol=0.01
         end
         # Ensure that BDF files can also be round-tripped
         mktempdir() do dir

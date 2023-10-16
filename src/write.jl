@@ -138,10 +138,10 @@ function write_tal(io::IO, tal::TimestampedAnnotationList)
     if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
         bytes_written += Base.write(io, '+')
     end
-    bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
+    bytes_written += Base.write(io, @sprintf("%f", tal.onset_in_seconds))
     if tal.duration_in_seconds !== nothing
         bytes_written += Base.write(io, 0x15)
-        bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
+        bytes_written += Base.write(io, @sprintf("%f", tal.duration_in_seconds))
     end
     if isempty(tal.annotations)
         bytes_written += Base.write(io, 0x14)

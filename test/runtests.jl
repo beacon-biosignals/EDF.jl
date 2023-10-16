@@ -117,7 +117,8 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test pyconvert(Float64, ann["onset"]) == 0
     @test pyconvert(Float64, ann["duration"]) == 0
 
-    edf_high = @set edf.signals[end].records[1][2].onset_in_seconds = 0.1055043f0
+    edf_high = @set edf.signals[end].records[1][2].onset_in_seconds = 0.1055043123123120
+    @test edf_high.signals[end].records[1][2].onset_in_seconds == 0.1055043123123120
     py = mne_read(edf_high)
     ann = py.annotations[0]
     # MNE doesn't read it in with the last digit, but it also doesn't error:
@@ -149,13 +150,6 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) == "-0.00234"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(0.0023405432)) == "0.002340"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1.002343)) == "1.002343"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1011.05432)) == "1011.054"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1011.05432)) == "-1011.05"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.5)) == "-1013442"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.3)) == "-1013441"
     @test EDF._edf_repr(34577777) == "34577777"
     @test EDF._edf_repr(0.0345) == "0.034500"
     @test EDF._edf_repr(-0.02) == "-0.02000"

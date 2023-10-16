@@ -41,7 +41,7 @@ const DATADIR = joinpath(@__DIR__, "data")
 
 @testset "Just Do It" begin
 
-    @testset "_edf_repr(x::Real, allow_scientific::Bool)" begin
+    @testset "Additional _edf_repr(x::Real, allow_scientific::Bool) tests" begin
 
         # Moderate sized numbers - should be the same either way
         for allow_scientific in (true, false)
@@ -70,11 +70,11 @@ const DATADIR = joinpath(@__DIR__, "data")
         # Small numbers / few digits
         @test _edf_repr(0.123e-10, true) == "1.23E-11"
         # decimal version underflows:
-        @test _edf_repr(0.123e-10, false) == "0"
+        @test (@test_logs (:warn, r"Underflow to zero") _edf_repr(0.123e-10, false)) == "0"
 
         # Small numbers / many digits
         @test _edf_repr(0.8945620050698592e-10, true) == "8.95E-11"
-        @test _edf_repr(0.8945620050698592e-10, false) == "0"
+        @test (@test_logs (:warn, r"Underflow to zero") _edf_repr(0.8945620050698592e-10, false)) == "0"
     end
 
     # test EDF.read(::AbstractString)
@@ -163,10 +163,10 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test_throws ArgumentError EDF._edf_repr(123456789)
     @test_throws ArgumentError EDF._edf_repr(-12345678)
 
-    @test EDF._edf_repr(4.180821e-7) == "0"
+    @test (@test_logs (:warn, r"Underflow to zero") EDF._edf_repr(4.180821e-7)) == "0"
     @test EDF._edf_repr(4.180821e-7, true) == "4.181E-7"
 
-    @test EDF._edf_repr(floatmin(Float64)) == "0"
+    @test (@test_logs (:warn, r"Underflow to zero") EDF._edf_repr(floatmin(Float64))) == "0"
     @test EDF._edf_repr(floatmin(Float64), true) == "2.2E-308"
 
     @test_throws ArgumentError EDF._edf_repr(floatmax(Float64))
@@ -177,7 +177,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     @test_throws ArgumentError EDF._edf_repr(big"1e999999", true)
 
     # if we don't allow scientific notation, we allow rounding down here
-    @test EDF._edf_repr(0.00000000024) == "0"
+    @test (@test_logs (:warn, r"Underflow to zero") EDF._edf_repr(0.00000000024)) == "0"
     @test EDF._edf_repr(0.00000000024, true) == "2.4E-10"
     @test_throws ErrorException EDF.edf_write(IOBuffer(), "hahahahaha", 4)
 

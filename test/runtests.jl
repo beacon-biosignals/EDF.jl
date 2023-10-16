@@ -6,7 +6,7 @@ using FilePathsBase
 using Test
 using PyMNE
 using Accessors
-using IOCapture
+
 #####
 ##### Testing utilities
 #####
@@ -41,12 +41,8 @@ function mne_read(edf)
     # Check we can load it and do something with it
     py = PyMNE.io.read_raw_edf(tmpfile; verbose=false)
     py.load_data(; verbose=false)
-    collect(py.annotations)
-    results = IOCapture.capture() do
-        return py.describe()
-    end
-    @test !results.error
-    @test contains(results.output, "RawEDF | test.edf")
+    data = pyconvert(Array, py.get_data())
+    @test data isa Matrix
     return py
 end
 

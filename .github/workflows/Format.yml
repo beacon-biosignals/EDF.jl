@@ -36,7 +36,6 @@ jobs:
         run: |
           julia --project=format -e 'using Pkg; Pkg.instantiate()'
           julia --project=format 'format/run.jl'
-      - run: git diff
       - uses: reviewdog/action-suggester@v1
         with:
           tool_name: JuliaFormatter

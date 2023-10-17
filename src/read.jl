@@ -3,7 +3,7 @@
 #####
 
 function Base.tryparse(::Type{PatientID}, raw::AbstractString)
-    metadata = split(raw, ' '; keepempty=false)
+      metadata = split(raw, ' '; keepempty=false)
     length(metadata) == 4 || return nothing
     code_raw, sex_raw, dob_raw, name_raw = metadata
     length(sex_raw) == 1 || return nothing

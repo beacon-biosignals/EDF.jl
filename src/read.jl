@@ -81,7 +81,8 @@ function read_file_header(io::IO)
     patient_id = something(tryparse(PatientID, patient_id_raw), String(patient_id_raw))
 
     recording_id_raw = strip(String(Base.read(io, 80)))
-    recording_id = something(tryparse(RecordingID, recording_id_raw), String(recording_id_raw))
+    recording_id = something(tryparse(RecordingID, recording_id_raw),
+                             String(recording_id_raw))
 
     start_raw = Base.read(io, 8)
     push!(start_raw, UInt8(' '))
@@ -108,7 +109,8 @@ function read_file_header(io::IO)
 end
 
 function read_signal_headers(io::IO, signal_count)
-    fields = [String(Base.read(io, size)) for signal in 1:signal_count, (_, size) in SIGNAL_HEADER_FIELDS]
+    fields = [String(Base.read(io, size))
+              for signal in 1:signal_count, (_, size) in SIGNAL_HEADER_FIELDS]
     signal_headers = [SignalHeader(strip(fields[i, 1]), strip(fields[i, 2]),
                                    strip(fields[i, 3]), parse_float(fields[i, 4]),
                                    parse_float(fields[i, 5]), parse_float(fields[i, 6]),
@@ -139,7 +141,7 @@ function read_to!(io::IO, x::AbstractArray{T}) where {T}
 end
 
 function read_signals!(file::File)
-    for record_index in 1:file.header.record_count, signal in file.signals
+    for record_index in 1:(file.header.record_count), signal in file.signals
         read_signal_record!(file, signal, record_index)
     end
     return nothing
@@ -157,7 +159,8 @@ end
 
 function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
     bytes_per_sample = sizeof(sample_type(file))
-    io_for_record = IOBuffer(Base.read(file.io, bytes_per_sample * signal.samples_per_record))
+    io_for_record = IOBuffer(Base.read(file.io,
+                                       bytes_per_sample * signal.samples_per_record))
     tals_for_record = TimestampedAnnotationList[]
     while !eof(io_for_record) && Base.peek(io_for_record) != 0x00
         push!(tals_for_record, read_tal(io_for_record))
@@ -172,7 +175,8 @@ function read_tal(io::IO)
     timestamp = split(String(bytes), '\x15'; keepempty=false)
     onset_in_seconds = flipsign(parse(Float64, timestamp[1]), sign)
     duration_in_seconds = length(timestamp) == 2 ? parse(Float64, timestamp[2]) : nothing
-    annotations = convert(Vector{String}, split(String(readuntil(io, 0x00)), '\x14'; keepempty=true))
+    annotations = convert(Vector{String},
+                          split(String(readuntil(io, 0x00)), '\x14'; keepempty=true))
     isempty(last(annotations)) && pop!(annotations)
     return TimestampedAnnotationList(onset_in_seconds, duration_in_seconds, annotations)
 end
@@ -182,6 +186,7 @@ function read_tal_onset_sign(io::IO)
     sign === 0x2b && return 1
     sign === 0x2d && return -1
     error("starting byte of a TAL must be '+' or '-'; found $sign")
+    return nothing
 end
 
 #####

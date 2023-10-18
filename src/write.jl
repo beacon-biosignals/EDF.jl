@@ -2,14 +2,14 @@
 ##### utilities
 #####
 
-_edf_repr(value::Union{String,Char}) = value
-_edf_repr(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
-_edf_repr(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
+edf_header_string(value::Union{String,Char}) = value
+edf_header_string(date::Date) = uppercase(Dates.format(date, dateformat"dd-u-yyyy"))
+edf_header_string(date::DateTime) = Dates.format(date, dateformat"dd\.mm\.yyHH\.MM\.SS")
 
 # XXX this is really really hacky and doesn't support use of scientific notation
 # where appropriate; keep in mind if you do improve this to support scientific
 # notation, that scientific is NOT allowed in EDF annotation onset/duration fields
-function _edf_repr(x::Real)
+function edf_header_string(x::Real)
     result = missing
     if isinteger(x)
         str = string(trunc(Int, x))
@@ -39,9 +39,9 @@ function _edf_repr(x::Real)
 end
 
 _edf_metadata_repr(::Missing) = 'X'
-_edf_metadata_repr(x) = _edf_repr(x)
+_edf_metadata_repr(x) = edf_header_string(x)
 
-function _edf_repr(metadata::T) where {T<:Union{PatientID,RecordingID}}
+function edf_header_string(metadata::T) where {T<:Union{PatientID,RecordingID}}
     header = T <: RecordingID ? String["Startdate"] : String[]
     return join([header;
                  [_edf_metadata_repr(getfield(metadata, name)) for name in fieldnames(T)]],
@@ -49,7 +49,7 @@ function _edf_repr(metadata::T) where {T<:Union{PatientID,RecordingID}}
 end
 
 function edf_write(io::IO, value, byte_limit::Integer)
-    edf_value = _edf_repr(value)
+    edf_value = edf_header_string(value)
     sizeof(edf_value) > byte_limit &&
         error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: $value")
     bytes_written = Base.write(io, edf_value)
@@ -144,10 +144,10 @@ function write_tal(io::IO, tal::TimestampedAnnotationList)
     if !signbit(tal.onset_in_seconds) # otherwise, the `-` will already be in number string
         bytes_written += Base.write(io, '+')
     end
-    bytes_written += Base.write(io, _edf_repr(tal.onset_in_seconds))
+    bytes_written += Base.write(io, edf_header_string(tal.onset_in_seconds))
     if tal.duration_in_seconds !== nothing
         bytes_written += Base.write(io, 0x15)
-        bytes_written += Base.write(io, _edf_repr(tal.duration_in_seconds))
+        bytes_written += Base.write(io, edf_header_string(tal.duration_in_seconds))
     end
     if isempty(tal.annotations)
         bytes_written += Base.write(io, 0x14)

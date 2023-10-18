@@ -118,23 +118,23 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) ==
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-0.0023405432)) ==
           "-0.00234"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(0.0023405432)) ==
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(0.0023405432)) ==
           "0.002340"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1.002343)) == "1.002343"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(1011.05432)) == "1011.054"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1011.05432)) ==
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(1.002343)) == "1.002343"
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(1011.05432)) == "1011.054"
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-1011.05432)) ==
           "-1011.05"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.5)) == "-1013442"
-    @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-1013441.3)) == "-1013441"
-    @test EDF._edf_repr(34577777) == "34577777"
-    @test EDF._edf_repr(0.0345) == "0.034500"
-    @test EDF._edf_repr(-0.02) == "-0.02000"
-    @test EDF._edf_repr(-187.74445) == "-187.744"
-    @test_throws ErrorException EDF._edf_repr(123456789)
-    @test_throws ErrorException EDF._edf_repr(-12345678)
-    @test_throws ErrorException EDF._edf_repr(0.00000000024)
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-1013441.5)) == "-1013442"
+    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-1013441.3)) == "-1013441"
+    @test EDF.edf_header_string(34577777) == "34577777"
+    @test EDF.edf_header_string(0.0345) == "0.034500"
+    @test EDF.edf_header_string(-0.02) == "-0.02000"
+    @test EDF.edf_header_string(-187.74445) == "-187.744"
+    @test_throws ErrorException EDF.edf_header_string(123456789)
+    @test_throws ErrorException EDF.edf_header_string(-12345678)
+    @test_throws ErrorException EDF.edf_header_string(0.00000000024)
     @test_throws ErrorException EDF.edf_write(IOBuffer(), "hahahahaha", 4)
 
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))

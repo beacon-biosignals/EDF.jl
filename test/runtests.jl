@@ -74,7 +74,7 @@ const DATADIR = joinpath(@__DIR__, "data")
                          TimestampedAnnotationList(2.5, 2.5, ["type A"])],
                         [TimestampedAnnotationList(5.0, nothing, String[""])]]
             @test all(signal.records .== expected)
-            @test AnnotationsSignal(signal.records).samples_per_record == 16
+            @test AnnotationsSignal(signal.records).samples_per_record == 17
         end
     end
 
@@ -118,24 +118,21 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-0.0023405432)) ==
-          "-0.00234"
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(0.0023405432)) ==
-          "0.002340"
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(1.002343)) == "1.002343"
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(1011.05432)) == "1011.054"
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-1011.05432)) ==
-          "-1011.05"
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-1013441.5)) == "-1013442"
-    @test EDF.edf_header_string(EDF._nearest_representable_edf_time_value(-1013441.3)) == "-1013441"
-    @test EDF.edf_header_string(34577777) == "34577777"
-    @test EDF.edf_header_string(0.0345) == "0.034500"
-    @test EDF.edf_header_string(-0.02) == "-0.02000"
-    @test EDF.edf_header_string(-187.74445) == "-187.744"
-    @test_throws ErrorException EDF.edf_header_string(123456789)
-    @test_throws ErrorException EDF.edf_header_string(-12345678)
-    @test_throws ErrorException EDF.edf_header_string(0.00000000024)
-    @test_throws ErrorException EDF.edf_write(IOBuffer(), "hahahahaha", 4)
+    @test EDF.edf_header_string("", -0.0023405432) == "-0.00234"
+    @test EDF.edf_header_string("", 0.0023405432) == "0.002340"
+    @test EDF.edf_header_string("", 1.002343) == "1.002343"
+    @test EDF.edf_header_string("", 1011.05432) == "1011.054"
+    @test EDF.edf_header_string("", -1011.0543) == "-1011.05"
+    @test EDF.edf_header_string("", -1013441.5) == "-1013442"
+    @test EDF.edf_header_string("", -1013441.3) == "-1013441"
+    @test EDF.edf_header_string("", 34577777) == "34577777"
+    @test EDF.edf_header_string("", 0.0345) == "0.034500"
+    @test EDF.edf_header_string("", -0.02) == "-0.02000"
+    @test EDF.edf_header_string("", -187.74445) == "-187.744"
+    @test EDF.edf_header_string("", 0.00000000024) == "0.000000"
+    @test_throws ErrorException EDF.edf_header_string("", 123456789)
+    @test_throws ErrorException EDF.edf_header_string("", -12345678)
+    @test_throws ErrorException EDF.edf_write(IOBuffer(), "", "hahahahaha", 4)
 
     uneven = EDF.read(joinpath(DATADIR, "test_uneven_samp.edf"))
     @test sprint(show, uneven) == "EDF.File with 2 16-bit-encoded signals"
@@ -169,7 +166,7 @@ const DATADIR = joinpath(@__DIR__, "data")
     # ```
     mne = map(line -> parse(Float32, line), eachline(joinpath(DATADIR, "mne_values.csv")))
     for (a, b) in zip(EDF.decode(signal), mne)
-        @test a ≈ b atol=0.01
+        @test a ≈ b atol = 0.01
     end
 
     # Truncated files
@@ -227,7 +224,7 @@ const DATADIR = joinpath(@__DIR__, "data")
         for i in 1:8
             bdf_values = EDF.decode(bdf.signals[i])
             comp_values = EDF.decode(comp.signals[i])
-            @test bdf_values ≈ comp_values rtol=0.01
+            @test bdf_values ≈ comp_values rtol = 0.01
         end
         # Ensure that BDF files can also be round-tripped
         mktempdir() do dir

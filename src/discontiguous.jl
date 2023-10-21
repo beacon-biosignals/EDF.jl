@@ -55,7 +55,6 @@ function read_discontiguous_signals!(file::File)
         fill!(@view(samples[prev_length:end]), 0)
     end
 
-
     spr = file.header.seconds_per_record
     count = 0
 
@@ -68,7 +67,7 @@ function read_discontiguous_signals!(file::File)
                 continue
             else
                 prev_start = start
-                 # TODO copy around and fill source areas with 0s
+                # TODO copy around and fill source areas with 0s
 
                 count += 1
             end

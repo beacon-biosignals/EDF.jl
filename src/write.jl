@@ -35,19 +35,23 @@ function _edf_repr(x::Real)
         end
     end
     error("failed to fit number into EDF's 8 ASCII character limit: $x")
+    return nothing
 end
 
 _edf_metadata_repr(::Missing) = 'X'
 _edf_metadata_repr(x) = _edf_repr(x)
 
-function _edf_repr(metadata::T) where T<:Union{PatientID,RecordingID}
+function _edf_repr(metadata::T) where {T<:Union{PatientID,RecordingID}}
     header = T <: RecordingID ? String["Startdate"] : String[]
-    return join([header; [_edf_metadata_repr(getfield(metadata, name)) for name in fieldnames(T)]], ' ')
+    return join([header;
+                 [_edf_metadata_repr(getfield(metadata, name)) for name in fieldnames(T)]],
+                ' ')
 end
 
 function edf_write(io::IO, value, byte_limit::Integer)
     edf_value = _edf_repr(value)
-    sizeof(edf_value) > byte_limit && error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: $value")
+    sizeof(edf_value) > byte_limit &&
+        error("EDF value exceeded byte limit (of $byte_limit bytes) while writing: $value")
     bytes_written = Base.write(io, edf_value)
     while bytes_written < byte_limit
         bytes_written += Base.write(io, UInt8(' '))
@@ -76,8 +80,10 @@ end
 #####
 
 function write_header(io::IO, file::File)
-    length(file.signals) <= 9999 || error("EDF does not allow files with more than 9999 signals")
-    expected_bytes_written = BYTES_PER_FILE_HEADER + BYTES_PER_SIGNAL_HEADER * length(file.signals)
+    length(file.signals) <= 9999 ||
+        error("EDF does not allow files with more than 9999 signals")
+    expected_bytes_written = BYTES_PER_FILE_HEADER +
+                             BYTES_PER_SIGNAL_HEADER * length(file.signals)
     bytes_written = 0
     bytes_written += edf_write(io, file.header.version, 8)
     bytes_written += edf_write(io, file.header.patient, 80)
@@ -106,7 +112,7 @@ end
 
 function write_signals(io::IO, file::File)
     bytes_written = 0
-    for record_index in 1:file.header.record_count
+    for record_index in 1:(file.header.record_count)
         for signal in file.signals
             bytes_written += write_signal_record(io, signal, record_index)
         end

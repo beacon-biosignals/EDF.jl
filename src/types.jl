@@ -161,7 +161,8 @@ function AnnotationsSignal(records::Vector{Vector{TimestampedAnnotationList}})
     # but cleanly refactoring the package to do this would be a more involved
     # change than is meritted at the moment (since normal signals are already
     # treated similarly, i.e. the `SignalHeader` is overly trusted).
-    max_bytes_per_record = maximum(sum(write_tal(IOBuffer(), tal) for tal in record) for record in records)
+    max_bytes_per_record = maximum(sum(write_tal(IOBuffer(), tal) for tal in record)
+                                   for record in records)
     return AnnotationsSignal(Int16(cld(max_bytes_per_record, 2)), records)
 end
 
@@ -267,7 +268,7 @@ struct File{T<:SUPPORTED_SAMPLE_TYPES,I<:IO}
     signals::Vector{Union{Signal{T},AnnotationsSignal}}
 end
 
-function Base.show(io::IO, edf::File{T}) where T
+function Base.show(io::IO, edf::File{T}) where {T}
     print(io, "EDF.File with ", length(edf.signals), ' ', 8 * sizeof(T),
           "-bit-encoded signals")
     return nothing

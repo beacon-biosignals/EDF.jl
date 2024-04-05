@@ -203,7 +203,7 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test_logs((:warn,
                     "Number of data records in file header does not match " *
                     "file size. Skipping 1 truncated data record(s)."),
-                    EDF.read(truncated_file))
+                   EDF.read(truncated_file))
         edf = EDF.read(joinpath(DATADIR, full_file))
         truncated_edf = EDF.read(truncated_file)
         for field in fieldnames(EDF.FileHeader)

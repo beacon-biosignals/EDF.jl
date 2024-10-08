@@ -4,6 +4,8 @@ using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
 using Dates
 using FilePathsBase
 using Test
+using PyMNE
+using Accessors
 
 #####
 ##### Testing utilities
@@ -32,6 +34,17 @@ function deep_equal(a::T, b::T) where {T<:AbstractArray}
 end
 
 deep_equal(a::T, b::S) where {T,S} = false
+
+function mne_read(edf)
+    tmpfile = joinpath(mktempdir(), "test.edf")
+    EDF.write(tmpfile, edf)
+    # Check we can load it and do something with it
+    py = PyMNE.io.read_raw_edf(tmpfile; verbose=false)
+    py.load_data(; verbose=false)
+    data = pyconvert(Array, py.get_data())
+    @test data isa Matrix
+    return py
+end
 
 #####
 ##### Actual tests
@@ -92,6 +105,14 @@ const DATADIR = joinpath(@__DIR__, "data")
     # simply rerunning the exact same test as above
     EDF.read!(file)
     @test deep_equal(edf.signals, file.signals)
+
+    # Check we can read it into MNE
+    py = mne_read(edf)
+    @test length(py.annotations) == 5
+    ann = py.annotations[1]
+    @test pyconvert(Float64, ann["onset"]) == 0.1344
+    @test pyconvert(Float64, ann["duration"]) == 0.256
+    @test pyconvert(String, ann["description"]) == "type A"
 
     # test that EDF.write(::IO, ::EDF.File) errors if file is
     # discontiguous w/o an AnnotationsSignal present
@@ -252,6 +273,15 @@ const DATADIR = joinpath(@__DIR__, "data")
         io = FileBuffer(Path(joinpath(DATADIR, "test.edf")))
         edf = EDF.File(io)
         @test sprint(show, edf) == "EDF.File with 140 16-bit-encoded signals"
+    end
+
+    @testset "Exports readable by MNE" begin
+        edf = EDF.read(joinpath(DATADIR, "test_float_extrema.edf"))
+        @test edf.signals[1].header.digital_minimum ≈ -32767.0f0
+        edf = @set edf.signals[1].header.digital_minimum = -32767 * 2
+
+        py = mne_read(edf)
+        @test isempty(py.annotations)
     end
 end
 

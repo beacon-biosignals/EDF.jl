@@ -44,7 +44,7 @@ struct SignalHeader
     digital_minimum::Float32
     digital_maximum::Float32
     prefilter::String
-    samples_per_record::Int16
+    samples_per_record::Int32
 end
 
 """
@@ -133,11 +133,11 @@ Type representing a single EDF Annotations signal.
 
 # Fields
 
-* `samples_per_record::Int16`
+* `samples_per_record::Int32`
 * `records::Vector{Vector{TimestampedAnnotationList}}`
 """
 struct AnnotationsSignal
-    samples_per_record::Int16
+    samples_per_record::Int32
     records::Vector{Vector{TimestampedAnnotationList}}
 end
 
@@ -163,11 +163,11 @@ function AnnotationsSignal(records::Vector{Vector{TimestampedAnnotationList}})
     # treated similarly, i.e. the `SignalHeader` is overly trusted).
     max_bytes_per_record = maximum(sum(write_tal(IOBuffer(), tal) for tal in record)
                                    for record in records)
-    return AnnotationsSignal(Int16(cld(max_bytes_per_record, 2)), records)
+    return AnnotationsSignal(Int32(cld(max_bytes_per_record, 2)), records)
 end
 
 function SignalHeader(signal::AnnotationsSignal)
-    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767,
+    return SignalHeader("EDF Annotations", "", "", -1, 1, typemin(Int16), typemax(Int16),
                         "", signal.samples_per_record)
 end
 

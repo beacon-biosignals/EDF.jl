@@ -33,7 +33,7 @@ Type representing the header for a single EDF signal.
 * `digital_minimum::Float32`: minimum value of the signal that could occur in a data record
 * `digital_maximum::Float32`: maximum value of the signal that could occur in a data record
 * `prefilter::String`: non-standardized prefiltering information
-* `samples_per_record::Int16`: number of samples in a data record (NOT overall)
+* `samples_per_record::Int32`: number of samples in a data record (NOT overall)
 """
 struct SignalHeader
     label::String

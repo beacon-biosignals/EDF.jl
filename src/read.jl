@@ -115,7 +115,7 @@ function read_signal_headers(io::IO, signal_count)
                                    strip(fields[i, 3]), parse_float(fields[i, 4]),
                                    parse_float(fields[i, 5]), parse_float(fields[i, 6]),
                                    parse_float(fields[i, 7]), strip(fields[i, 8]),
-                                   parse(Int16, fields[i, 9])) for i in 1:size(fields, 1)]
+                                   parse(Int32, fields[i, 9])) for i in 1:size(fields, 1)]
     skip(io, 32 * signal_count) # reserved
     return signal_headers
 end

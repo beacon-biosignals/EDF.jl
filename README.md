@@ -16,3 +16,7 @@ Compared to all features implied by the EDF/EDF+ specifications, this package is
 - Support for [the EDF+ `longinteger`/`float` extension](https://www.edfplus.info/specs/edffloat.html)
 
 Where practical, this package chooses field names that are as close to EDF/EDF+ specification terminology as possible.
+
+## Breaking Changes
+
+In v0.8.0, the field `samples_per_record` of `SignalHeader` was changed from `Int16` to `Int32`.

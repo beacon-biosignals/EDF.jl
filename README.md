@@ -19,4 +19,4 @@ Where practical, this package chooses field names that are as close to EDF/EDF+ 
 
 ## Breaking Changes
 
-In 0.8 the field `samples_per_record` of `SignalHeader` was changes from `Int16` to `Int32`.
+In v0.8.0, the field `samples_per_record` of `SignalHeader` was changed from `Int16` to `Int32`.

@@ -167,7 +167,7 @@ function AnnotationsSignal(records::Vector{Vector{TimestampedAnnotationList}})
 end
 
 function SignalHeader(signal::AnnotationsSignal)
-    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767, # typemin/typemax
+    return SignalHeader("EDF Annotations", "", "", -1, 1, -32768, 32767,
                         "", signal.samples_per_record)
 end
 

@@ -265,7 +265,7 @@ Type representing an EDF file with samples encoded as values of type `T`, which 
 struct File{T<:SUPPORTED_SAMPLE_TYPES,I<:IO}
     io::I
     header::FileHeader
-    signals::Vector{Union{Signal{T},AnnotationsSignal}}
+    signals::Vector{<:Union{Signal{T},AnnotationsSignal}}
 end
 
 function Base.show(io::IO, edf::File{T}) where {T}

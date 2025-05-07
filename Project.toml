@@ -9,13 +9,18 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
+Aqua = "0.8"
 BitIntegers = "0.2, 0.3"
+Dates = "1"
 FilePathsBase = "0.9.13"
+Printf = "1"
+Test = "1"
 julia = "1.4"
 
 [extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 FilePathsBase = "48062228-2e41-5def-b9a4-89aafe57970f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["FilePathsBase", "Test"]
+test = ["Aqua", "FilePathsBase", "Test"]

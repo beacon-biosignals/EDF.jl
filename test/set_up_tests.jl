@@ -1,6 +1,7 @@
 using EDF
 using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
            Signal, AnnotationsSignal
+using Aqua
 using Dates
 using FilePathsBase
 using Test

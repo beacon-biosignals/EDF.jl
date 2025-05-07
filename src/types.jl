@@ -88,14 +88,9 @@ const ANNOTATIONS_SIGNAL_LABEL = ["EDF Annotations", "BDF Annotations"]
     EDF.TimestampedAnnotationList
 
 A type representing a time-stamped annotations list (TAL).
-
-Note that this type's constructor may attempt to round given `onset_in_seconds` and
-`duration_in_seconds` arguments to their nearest representable values in accordance
-with the EDF+ specification, which a) represents these values as ASCII, b) constrains
-these values to an 8 character limit, and c) does not allow the use of scientific
-notation for these fields.
-
-See EDF+ specification for details.
+    
+When writing onset and durations, the values will be rounded to the nearest 100 milliseconds,
+using [`EDF.edf_annotation_time_string`](@ref).
 
 # Fields
 
@@ -107,17 +102,6 @@ struct TimestampedAnnotationList
     onset_in_seconds::Float64
     duration_in_seconds::Union{Float64,Nothing}
     annotations::Vector{String}
-    function TimestampedAnnotationList(onset_in_seconds, duration_in_seconds, annotations)
-        onset_in_seconds = _nearest_representable_edf_time_value(onset_in_seconds)
-        duration_in_seconds = _nearest_representable_edf_time_value(duration_in_seconds)
-        return new(onset_in_seconds, duration_in_seconds, annotations)
-    end
-end
-
-_nearest_representable_edf_time_value(::Nothing) = nothing
-
-function _nearest_representable_edf_time_value(x)
-    return round(x; digits=(8 - (ndigits(floor(Int, x)) + signbit(x) + isinteger(x))))
 end
 
 function Base.:(==)(a::TimestampedAnnotationList, b::TimestampedAnnotationList)

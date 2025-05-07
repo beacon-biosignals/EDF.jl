@@ -118,6 +118,19 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test eof(io)
     end
 
+    @testset "EDF constructor with different signal collection (el)type (#95)" begin
+        alt_signals = Tuple(file.signals)
+        @test EDF.File(IOBuffer(), file.header, alt_signals) isa EDF.File{Int16}
+
+        alt_signals = collect(Signal, filter(s -> !(s isa AnnotationsSignal), file.signals))
+        @test alt_signals isa Vector{Signal}
+        @test EDF.File(IOBuffer(), file.header, alt_signals) isa EDF.File{Int16}
+
+        alt_signals = collect(AnnotationsSignal, filter(s -> s isa AnnotationsSignal, file.signals))
+        @test alt_signals isa Vector{AnnotationsSignal}
+        @test EDF.File(IOBuffer(), file.header, alt_signals) isa EDF.File{Int16}
+    end
+
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) ==
           "-0.00234"
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(0.0023405432)) ==

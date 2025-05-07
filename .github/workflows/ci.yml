@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.4'  # Earliest supported version
+          - 'min'  # Earliest supported version
           - '1'    # Latest release
           - 'nightly'
         os:

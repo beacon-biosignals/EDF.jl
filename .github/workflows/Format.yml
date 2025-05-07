@@ -28,7 +28,7 @@ jobs:
         shell: julia --project=@format --color=yes {0}
         run: |
           using Pkg
-          Pkg.add(PackageSpec(; name="JuliaFormatter", version="1"))
+          Pkg.add(PackageSpec(; name="JuliaFormatter", version="2"))
       - name: Check formatting
         shell: julia --project=@format --color=yes {0}
         run: |

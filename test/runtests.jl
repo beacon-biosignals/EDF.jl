@@ -126,7 +126,8 @@ const DATADIR = joinpath(@__DIR__, "data")
         @test alt_signals isa Vector{Signal}
         @test EDF.File(IOBuffer(), file.header, alt_signals) isa EDF.File{Int16}
 
-        alt_signals = collect(AnnotationsSignal, filter(s -> s isa AnnotationsSignal, file.signals))
+        alt_signals = collect(AnnotationsSignal,
+                              filter(s -> s isa AnnotationsSignal, file.signals))
         @test alt_signals isa Vector{AnnotationsSignal}
         @test EDF.File(IOBuffer(), file.header, alt_signals) isa EDF.File{Int16}
 

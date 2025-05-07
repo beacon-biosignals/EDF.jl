@@ -268,6 +268,27 @@ struct File{T<:SUPPORTED_SAMPLE_TYPES,I<:IO}
     signals::Vector{Union{Signal{T},AnnotationsSignal}}
 end
 
+"""
+    File(io::IO, header::FileHeader, signals)
+
+Convenience constructor that allows passing an arbitrary collection of
+`Signal`s and/or `AnnotationsSignal`s.
+
+!!! note
+    This method creates a copy of the _container_, but not the elements.
+    In other words, it creates a new `Vector{Union{Signal{T},AnnotationsSignal}}`
+    and populates it with the contents of `signals`.
+"""
+function File(io::IO, header::FileHeader, signals)
+    # allow arbitrary collections (AbstractVector or Tuple)
+    # which may or may not contain both Signal and AnnotationsSignal,
+    # e.g. Vector{Signal{T}}
+    # see https://discourse.julialang.org/t/writing-an-edf-file-using-edf-jl/128666
+    T = sample_type(header)
+    signals = collect(Union{Signal{T},AnnotationsSignal}, signals)
+    return File{T,typeof(io)}(io, header, signals)
+end
+
 function Base.show(io::IO, edf::File{T}) where {T}
     print(io, "EDF.File with ", length(edf.signals), ' ', 8 * sizeof(T),
           "-bit-encoded signals")

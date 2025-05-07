@@ -15,6 +15,10 @@ include("write.jl")
                PatientID,
                RecordingID,
                sample_type,
-               is_bdf
+               is_bdf,
+               read,
+               read!,
+               decode,
+               write
 
 end # module

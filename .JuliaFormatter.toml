@@ -1,1 +1,2 @@
 style = "yas"
+ignore = ["public.jl"]

@@ -4,5 +4,6 @@
 *.pdf
 *.DS_Store
 Manifest.toml
+Manifest-v*.toml
 docs/build/
 coverage/

@@ -1,14 +1,20 @@
 module EDF
 
-using BitIntegers, Dates, Printf
+using BitIntegers, Compat, Dates, Printf
 
 include("types.jl")
 include("read.jl")
 include("write.jl")
 
-@static if VERSION >= v"1.11"
-    # public is parsed weirdly, so we can't just inline the statement here
-    include("public.jl")
-end
+@compat public File,
+               FileHeader,
+               SignalHeader,
+               Signal,
+               AnnotationsSignal,
+               TimestampedAnnotationList,
+               PatientID,
+               RecordingID,
+               sample_type,
+               is_bdf
 
 end # module

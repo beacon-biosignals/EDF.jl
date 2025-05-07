@@ -271,9 +271,8 @@ end
 """
     File(io::IO, header::FileHeader, signals)
 
-
 Convenience constructor that allows passing an arbitrary collection of
-`Signal`s and `AnnotationSignal`s.
+`Signal`s and/or `AnnotationsSignal`s.
 
 !!! note
     This method creates a copy of the _container_, but not the elements.

@@ -273,14 +273,9 @@ end
 # e.g. Vector{Signal{T}}
 # see https://discourse.julialang.org/t/writing-an-edf-file-using-edf-jl/128666
 function File(io::IO, header::FileHeader, signals)
-    eltypes = unique(typeof.(signals))
-    signal_types = filter(x -> x <: Signal, eltypes)
-    length(signal_types) > 1 &&
-        throw(ArgumentError("Signals must all have the same sample type"))
-    # default to EDF for pure annotation signals
-    signal_type = isempty(signal_types) ? Signal{Int16} : only(signal_types)
-    signals = collect(Union{EDF.AnnotationsSignal, signal_type}, signals)
-    return File(io, header, signals)
+    T = sample_type(header)
+    signals = collect(Union{Signal{T},AnnotationsSignal}, signals)
+    return File{T,typeof(io)}(io, header, signals)
 end
 
 function Base.show(io::IO, edf::File{T}) where {T}

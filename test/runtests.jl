@@ -129,6 +129,9 @@ const DATADIR = joinpath(@__DIR__, "data")
         alt_signals = collect(AnnotationsSignal, filter(s -> s isa AnnotationsSignal, file.signals))
         @test alt_signals isa Vector{AnnotationsSignal}
         @test EDF.File(IOBuffer(), file.header, alt_signals) isa EDF.File{Int16}
+
+        # this even allows for empty EDFs ...
+        @test EDF.File(IOBuffer(), file.header, []) isa EDF.File{Int16}
     end
 
     @test EDF._edf_repr(EDF._nearest_representable_edf_time_value(-0.0023405432)) ==

@@ -1,3 +1,5 @@
+include("set_up_tests.jl")
+
 using EDF
 using EDF: TimestampedAnnotationList, PatientID, RecordingID, SignalHeader,
            Signal, AnnotationsSignal

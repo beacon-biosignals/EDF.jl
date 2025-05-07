@@ -265,7 +265,16 @@ Type representing an EDF file with samples encoded as values of type `T`, which 
 struct File{T<:SUPPORTED_SAMPLE_TYPES,I<:IO}
     io::I
     header::FileHeader
-    signals::Vector{<:Union{Signal{T},AnnotationsSignal}}
+    signals::Vector{Union{Signal{T},AnnotationsSignal}}
+end
+
+# allow arbitrary collections (AbstractVector or Tuple)
+# which may or may not contain both Signal and AnnotationsSignal,
+# e.g. Vector{Signal{T}}
+# see https://discourse.julialang.org/t/writing-an-edf-file-using-edf-jl/128666
+function File(io::IO, header::FileHeader, signals)
+    signals = collect(Union{EDF.AnnotationsSignal, eltype(signals)}, signals)
+    return File(io, header, signals)
 end
 
 function Base.show(io::IO, edf::File{T}) where {T}

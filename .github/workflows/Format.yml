@@ -1,41 +1,41 @@
 ---
-    name: Format Check
-    on:
-      push:
-        branches:
-          - main
-          - /^release-.*$/
-        tags: ["*"]
-        paths:
-          - "**/*.jl"
-          - ".github/workflows/Format.yml"
-      pull_request:
-        types: [opened, synchronize, reopened, ready_for_review]
-        paths:
-          - "**/*.jl"
-          - ".github/workflows/Format.yml"
-    jobs:
-      format-check:
-        name: Julia
-        runs-on: ubuntu-latest
-        steps:
-          - uses: actions/checkout@v4
-          - uses: julia-actions/setup-julia@v2
-            with:
-              version: "1"
-          - uses: julia-actions/cache@v2
-          - name: Install JuliaFormatter
-            shell: julia --project=@format --color=yes {0}
-            run: |
-              using Pkg
-              Pkg.add(PackageSpec(; name="JuliaFormatter", version="1"))
-          - name: Check formatting
-            shell: julia --project=@format --color=yes {0}
-            run: |
-              using JuliaFormatter
-              format("."; verbose=true) || exit(1)
-          # Add formatting suggestions to non-draft PRs when "Check formatting" fails
-          - uses: reviewdog/action-suggester@v1
-            if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
-            with:
-              tool_name: JuliaFormatter
+name: Format Check
+on:
+  push:
+    branches:
+      - main
+      - /^release-.*$/
+    tags: ["*"]
+    paths:
+      - "**/*.jl"
+      - ".github/workflows/Format.yml"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "**/*.jl"
+      - ".github/workflows/Format.yml"
+jobs:
+  format-check:
+    name: Julia
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      - name: Install JuliaFormatter
+        shell: julia --project=@format --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.add(PackageSpec(; name="JuliaFormatter", version="1"))
+      - name: Check formatting
+        shell: julia --project=@format --color=yes {0}
+        run: |
+          using JuliaFormatter
+          format("."; verbose=true) || exit(1)
+      # Add formatting suggestions to non-draft PRs when "Check formatting" fails
+      - uses: reviewdog/action-suggester@v1
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        with:
+          tool_name: JuliaFormatter

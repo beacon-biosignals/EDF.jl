@@ -254,3 +254,29 @@ end
     annotations = [event[end].annotations[1] for event in events]
     @test count(==("255"), annotations) == 180
 end
+
+@testset "EDF+D Files" begin
+    uredf = EDF.read(joinpath(DATADIR, "test.edf"))
+    edf = EDF.read(joinpath(DATADIR, "test_merged.edf"))
+    edfd = EDF.read_discontiguous(joinpath(DATADIR, "test_merged.edf"))
+
+    @test edf.header == edfd.header
+    sc = edf.signals[1]
+    sd = edfd.signals[1]
+
+    @test sc.header == sd.header
+    # doubled signal with 12 hours between start times
+    # but we need to take into account that the 12 hours includes the
+    # duration of the original signal
+    beginning = view(sd.samples, 1:length(sc.samples))
+    ending = @view sd.samples[(end-length(sc.samples)+1):end]
+    gap = @view sd.samples[length(sc.samples)+1:(end-length(sc.samples))]
+    @test sc.samples == beginning
+    @test sc.samples == ending
+    @test all(==(0), gap)
+    # sd.samples[length(sc.samples))+1]
+    # sr = EDF.sampling_rate(edf, sc)
+    # dur = 2 * length(sc.samples) + 12 * 60 * 60 * sr
+    # dur -= length(sc.samples)
+    # length(sd.samples)
+end

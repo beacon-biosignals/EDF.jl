@@ -172,6 +172,18 @@ function SignalHeader(signal::AnnotationsSignal)
 end
 
 #####
+##### BDF trigger signal
+#####
+
+struct TriggerStatusSignal
+    header::SignalHeader
+    trigger::Vector{UInt16}
+    status::Vector{UInt8}
+end
+
+SignalHeader(signal::TriggerStatusSignal) = signal.header
+
+#####
 ##### EDF+ Patient/Recording Metadata
 #####
 
@@ -265,7 +277,7 @@ Type representing an EDF file with samples encoded as values of type `T`, which 
 struct File{T<:SUPPORTED_SAMPLE_TYPES,I<:IO}
     io::I
     header::FileHeader
-    signals::Vector{Union{Signal{T},AnnotationsSignal}}
+    signals::Vector{Union{Signal{T},AnnotationsSignal,TriggerStatusSignal}}
 end
 
 """

@@ -60,19 +60,32 @@ function edf_write(io::IO, value, byte_limit::Integer)
 end
 
 # NOTE: The fast-path in `Base.write` that uses `unsafe_write` will include alignment
-# padding bytes, which is fine for `Int16` but causes `Int24` to write an extra byte
-# for each value. To get around this, we'll fall back to a naive implementation when
-# the size of the element type doesn't match its aligned size. (See also `read_to!`)
+# padding bytes, which is fine for `Int16` but causes e.g. `Int24` to write an extra
+# byte for each value. Depending on the Julia version, `Base.write(io, x::T)` may also
+# include the padding. To get around this, we write such values byte-by-byte when the
+# encoded size of the element type doesn't match its aligned size. (See also `read_to!`)
 function write_from(io::IO, x::AbstractArray{T}) where {T}
-    if sizeof(T) == Base.aligned_sizeof(T)
+    if encoded_sizeof(T) == Base.aligned_sizeof(T)
         return Base.write(io, x)
     else
         n = 0
         for xi in x
-            n += Base.write(io, xi)
+            n += write_packed(io, xi)
         end
         return n
     end
+end
+
+# Write `x` as a little-endian integer stored in `encoded_sizeof(T)` bytes
+function write_packed(io::IO, x::T) where {T<:Signed}
+    # NOTE: We use the intrinsic directly since conversions defined by BitIntegers
+    # assume that `sizeof(T)` is the unpadded size, which doesn't hold for Julia 1.14+.
+    u = Core.Intrinsics.sext_int(UInt64, x)
+    n = 0
+    for i in 0:(encoded_sizeof(T) - 1)
+        n += Base.write(io, (u >> (8 * i)) % UInt8)
+    end
+    return n
 end
 
 #####

@@ -125,19 +125,31 @@ end
 #####
 
 # NOTE: The fast-path in `Base.read!` that uses `unsafe_read` will read too much when
-# the element type is `Int24`, since it will try to include the alignment padding for
-# each value read and will thus read too much. To get around this, we'll fall back to
-# a naive implementation when the size of the element type doesn't match its aligned
-# size. (See also `write_from`)
+# the element type has alignment padding (e.g. `Int24`), since it will include the
+# padding for each value read. Depending on the Julia version, `Base.read(io, T)` may
+# also include the padding. To get around this, we read such values byte-by-byte when
+# the encoded size of the element type doesn't match its aligned size.
+# (See also `write_from`)
 function read_to!(io::IO, x::AbstractArray{T}) where {T}
-    if sizeof(T) == Base.aligned_sizeof(T)
+    if encoded_sizeof(T) == Base.aligned_sizeof(T)
         Base.read!(io, x)
     else
         @inbounds for i in eachindex(x)
-            x[i] = Base.read(io, T)
+            x[i] = read_packed(io, T)
         end
     end
     return x
+end
+
+# Read a little-endian integer of type `T` stored in `encoded_sizeof(T)` bytes
+function read_packed(io::IO, ::Type{T}) where {T<:Integer}
+    u = zero(UInt64)
+    for i in 0:(encoded_sizeof(T) - 1)
+        u |= UInt64(Base.read(io, UInt8)) << (8 * i)
+    end
+    # NOTE: We use the intrinsic directly since conversions defined by BitIntegers
+    # assume that `sizeof(T)` is the unpadded size, which doesn't hold for Julia 1.14+.
+    return Core.Intrinsics.trunc_int(T, u)
 end
 
 function read_signals!(file::File)
@@ -158,7 +170,7 @@ function read_signal_record!(file::File, signal::Signal, record_index::Int)
 end
 
 function read_signal_record!(file::File, signal::AnnotationsSignal, record_index::Int)
-    bytes_per_sample = sizeof(sample_type(file))
+    bytes_per_sample = encoded_sizeof(sample_type(file))
     io_for_record = IOBuffer(Base.read(file.io,
                                        bytes_per_sample * signal.samples_per_record))
     tals_for_record = TimestampedAnnotationList[]
@@ -222,7 +234,7 @@ function File(io::IO)
                 return signal.samples_per_record
             end
         end
-        readable_records = div(div(bytes_left, sizeof(T)), total_expected_samples)
+        readable_records = div(div(bytes_left, encoded_sizeof(T)), total_expected_samples)
         if file_header.record_count > readable_records
             @warn("Number of data records in file header does not match file size. " *
                   "Skipping $(file_header.record_count - readable_records) truncated " *

@@ -4,6 +4,17 @@ const EDF_SAMPLE_TYPE = Int16
 const BDF_SAMPLE_TYPE = Int24
 const SUPPORTED_SAMPLE_TYPES = Union{EDF_SAMPLE_TYPE,BDF_SAMPLE_TYPE}
 
+# Number of bytes used to encode a single sample of type `T` in an EDF/BDF file, i.e.
+# the size of `T` without any alignment padding.
+# NOTE: We can't rely on `sizeof` for this: Julia 1.14+ includes padding in `sizeof` for
+# primitive types whose size isn't a power of 2, e.g. `sizeof(Int24) == 4`, and provides
+# the unpadded size via (the non-public) `Base.packedsize` instead.
+@static if isdefined(Base, :packedsize)
+    encoded_sizeof(::Type{T}) where {T} = Base.packedsize(T)
+else
+    encoded_sizeof(::Type{T}) where {T} = sizeof(T)
+end
+
 #####
 ##### `EDF.Signal`
 #####
@@ -290,7 +301,7 @@ function File(io::IO, header::FileHeader, signals)
 end
 
 function Base.show(io::IO, edf::File{T}) where {T}
-    print(io, "EDF.File with ", length(edf.signals), ' ', 8 * sizeof(T),
+    print(io, "EDF.File with ", length(edf.signals), ' ', 8 * encoded_sizeof(T),
           "-bit-encoded signals")
     return nothing
 end

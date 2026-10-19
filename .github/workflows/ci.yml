@@ -23,7 +23,7 @@ jobs:
         os:
           - ubuntu-latest
         arch:
-          - x64
+          - x64         
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -41,6 +41,10 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      statuses: write
+      pull-requests: read # needed for Documenter to check whether this PR comes from the same repo     
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/julia-buildpkg@latest
